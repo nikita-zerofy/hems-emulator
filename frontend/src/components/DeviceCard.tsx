@@ -1,0 +1,186 @@
+import React, { useState } from 'react';
+import { Trash2, Sun, Battery, Zap, Home } from 'lucide-react';
+import { format } from 'date-fns';
+import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState } from '../types';
+import { apiClient } from '../utils/api';
+
+interface DeviceCardProps {
+  device: Device;
+  onDeviceDeleted: (deviceId: string) => void;
+}
+
+const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
+  const [loading, setLoading] = useState(false);
+
+  const getDeviceIcon = () => {
+    switch (device.deviceType) {
+      case DeviceType.SolarInverter:
+        return <Sun size={20} style={{ color: '#f59e0b' }} />;
+      case DeviceType.Battery:
+        return <Battery size={20} style={{ color: '#10b981' }} />;
+      case DeviceType.Appliance:
+        return <Zap size={20} style={{ color: '#3b82f6' }} />;
+      case DeviceType.Meter:
+        return <Home size={20} style={{ color: '#6b7280' }} />;
+      default:
+        return <div style={{ width: 20, height: 20 }} />;
+    }
+  };
+
+  const getDeviceTypeLabel = () => {
+    switch (device.deviceType) {
+      case DeviceType.SolarInverter:
+        return 'Solar Inverter';
+      case DeviceType.Battery:
+        return 'Battery';
+      case DeviceType.Appliance:
+        return 'Appliance';
+      case DeviceType.Meter:
+        return 'Smart Meter';
+      default:
+        return device.deviceType;
+    }
+  };
+
+  const renderMetrics = () => {
+    switch (device.deviceType) {
+      case DeviceType.SolarInverter: {
+        const state = device.state as SolarInverterState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">Watts</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.energyTodayKwh.toFixed(2)}</div>
+              <div className="metric-label">kWh Today</div>
+            </div>
+          </div>
+        );
+      }
+
+      case DeviceType.Battery: {
+        const state = device.state as BatteryState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{Math.round(state.batteryLevel * 100)}%</div>
+              <div className="metric-label">Charge</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">Watts</div>
+            </div>
+          </div>
+        );
+      }
+
+      case DeviceType.Appliance: {
+        const state = device.state as ApplianceState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{state.isOn ? 'ON' : 'OFF'}</div>
+              <div className="metric-label">Status</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">Watts</div>
+            </div>
+          </div>
+        );
+      }
+
+      case DeviceType.Meter: {
+        const state = device.state as MeterState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">{state.powerW > 0 ? 'Import' : 'Export'}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.energyImportTodayKwh.toFixed(2)}</div>
+              <div className="metric-label">kWh Today</div>
+            </div>
+          </div>
+        );
+      }
+
+      default:
+        return null;
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this device?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await apiClient.deleteDevice(device.deviceId);
+      onDeviceDeleted(device.deviceId);
+    } catch (err) {
+      alert('Failed to delete device: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isOnline = device.state && 'isOnline' in device.state ? device.state.isOnline : true;
+
+  return (
+    <div className="device-card">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          {getDeviceIcon()}
+          <div>
+            <div className="device-type">{getDeviceTypeLabel()}</div>
+            <div className="device-name">
+              {device.name || `${getDeviceTypeLabel()} ${device.deviceId.slice(0, 8)}`}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleDelete}
+          disabled={loading}
+          className="btn btn-danger btn-sm"
+          title="Delete device"
+        >
+          {loading ? (
+            <div className="spinner" style={{ width: '12px', height: '12px' }} />
+          ) : (
+            <Trash2 size={12} />
+          )}
+        </button>
+      </div>
+
+      {/* Status */}
+      <div className="device-status">
+        <div className={isOnline ? 'status-online' : 'status-offline'} />
+        <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+      </div>
+
+      {/* Metrics */}
+      {renderMetrics()}
+
+      {/* Footer */}
+      <div style={{ 
+        fontSize: '0.75rem', 
+        color: '#9ca3af', 
+        marginTop: '1rem',
+        paddingTop: '0.75rem',
+        borderTop: '1px solid #f3f4f6'
+      }}>
+        Updated: {format(new Date(device.updatedAt), 'HH:mm:ss')}
+      </div>
+    </div>
+  );
+};
+
+export default DeviceCard; 
