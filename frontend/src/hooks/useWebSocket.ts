@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { SimulationUpdate } from '../types';
 
+
+// @ts-ignore
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 export interface DwellingUpdate {

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
-import { authenticateZerofyToken, requireZerofyScope } from '../middleware/zerofyAuth';
+import { authenticateZerofyToken } from '../middleware/zerofyAuth';
 import { ZerofyApiResponse, ZerofyAuth } from '../types/zerofy';
 import { z } from 'zod';
 
@@ -56,7 +56,6 @@ router.post('/auth', async (req: Request, res: Response) => {
  */
 router.get('/devices', 
   authenticateZerofyToken,
-  requireZerofyScope('device:read'),
   async (req: Request, res: Response) => {
     try {
       if (!req.zerofyUser) {
@@ -101,7 +100,6 @@ router.get('/devices',
  */
 router.get('/devices/:deviceId',
   authenticateZerofyToken,
-  requireZerofyScope('device:read'),
   async (req: Request, res: Response) => {
     try {
       if (!req.zerofyUser) {
@@ -163,7 +161,6 @@ router.get('/devices/:deviceId',
  */
 router.get('/devices/:deviceId/status',
   authenticateZerofyToken,
-  requireZerofyScope('device:status'),
   async (req: Request, res: Response) => {
     try {
       if (!req.zerofyUser) {

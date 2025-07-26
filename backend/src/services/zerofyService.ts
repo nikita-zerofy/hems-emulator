@@ -21,7 +21,7 @@ import {
   MeterState
 } from '../types';
 
-const ZEROFY_JWT_SECRET = process.env.ZEROFY_JWT_SECRET ?? 'zerofy_api_secret_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
 const ZEROFY_TOKEN_EXPIRES_IN = '24h';
 
 export class ZerofyService {
@@ -58,7 +58,7 @@ export class ZerofyService {
         scope: 'device:read device:status',
         type: 'zerofy_api'
       },
-      ZEROFY_JWT_SECRET,
+      JWT_SECRET,
       {expiresIn: ZEROFY_TOKEN_EXPIRES_IN}
     );
 
@@ -235,13 +235,17 @@ export class ZerofyService {
     };
   }
 
-  /**
+  /**sc
    * Verify Zerofy JWT token
    */
   static verifyZerofyToken(token: string): any {
     try {
-      return jwt.verify(token, ZEROFY_JWT_SECRET);
+      console.log('Verifying Zerofy token:', token);
+      const result = jwt.verify(token, JWT_SECRET);
+      console.log('Verifying Zerofy token:', result);
+      return result
     } catch (error) {
+      console.log(error);
       throw new Error('Invalid or expired Zerofy token');
     }
   }

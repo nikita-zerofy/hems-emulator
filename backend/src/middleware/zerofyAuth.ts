@@ -7,8 +7,6 @@ declare global {
     interface Request {
       zerofyUser?: {
         userId: string;
-        clientId: string;
-        scope: string;
       };
     }
   }
@@ -37,21 +35,17 @@ export const authenticateZerofyToken = (req: Request, res: Response, next: NextF
   }
 
   try {
+    console.log(`Authenticating Zerofy token: ${token}`);
     const decoded = ZerofyService.verifyZerofyToken(token);
-    
-    // Verify it's a Zerofy API token
-    if (decoded.type !== 'zerofy_api') {
-      throw new Error('Invalid token type');
-    }
+    console.log(`Decoded Zerofy token: ${JSON.stringify(decoded)}`);
 
     req.zerofyUser = {
       userId: decoded.userId,
-      clientId: decoded.clientId,
-      scope: decoded.scope
     };
     
     next();
   } catch (error) {
+    console.error(error);
     res.status(401).json({
       success: false,
       error: {
@@ -69,36 +63,36 @@ export const authenticateZerofyToken = (req: Request, res: Response, next: NextF
 /**
  * Middleware to check if the token has required scopes
  */
-export const requireZerofyScope = (requiredScope: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.zerofyUser) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required'
-        }
-      });
-      return;
-    }
-
-    const userScopes = req.zerofyUser.scope.split(' ');
-    
-    if (!userScopes.includes(requiredScope)) {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_SCOPE',
-          message: `Required scope '${requiredScope}' not granted`
-        },
-        meta: {
-          timestamp: new Date().toISOString(),
-          version: '1.0.0'
-        }
-      });
-      return;
-    }
-
-    next();
-  };
-}; 
+// export const requireZerofyScope = (requiredScope: string) => {
+//   return (req: Request, res: Response, next: NextFunction): void => {
+//     if (!req.zerofyUser) {
+//       res.status(401).json({
+//         success: false,
+//         error: {
+//           code: 'UNAUTHORIZED',
+//           message: 'Authentication required'
+//         }
+//       });
+//       return;
+//     }
+//
+//     const userScopes = req.zerofyUser.scope.split(' ');
+//
+//     if (!userScopes.includes(requiredScope)) {
+//       res.status(403).json({
+//         success: false,
+//         error: {
+//           code: 'INSUFFICIENT_SCOPE',
+//           message: `Required scope '${requiredScope}' not granted`
+//         },
+//         meta: {
+//           timestamp: new Date().toISOString(),
+//           version: '1.0.0'
+//         }
+//       });
+//       return;
+//     }
+//
+//     next();
+//   };
+// };
