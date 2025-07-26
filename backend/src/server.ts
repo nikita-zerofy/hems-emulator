@@ -14,6 +14,7 @@ import { SimulationEngine } from './services/simulationEngine';
 import authRoutes from './routes/auth';
 import dwellingRoutes from './routes/dwellings';
 import deviceRoutes from './routes/devices';
+import zerofyRoutes from './routes/zerofy';
 
 // Initialize Express app
 const app = express();
@@ -71,6 +72,9 @@ app.get('/health', (_req, res) => {
 app.use('/auth', authRoutes);
 app.use('/dwellings', dwellingRoutes);
 app.use('/', deviceRoutes); // Device routes include both /devices and /dwellings/:id/devices
+
+// Zerofy Integration API
+app.use('/api/zerofy', zerofyRoutes);
 
 // WebSocket connection handling
 io.on('connection', (socket) => {

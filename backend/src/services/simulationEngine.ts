@@ -1,7 +1,7 @@
 // // import { DateTime } from 'luxon';
-import { query } from '../config/database';
-import { DeviceService } from './deviceService';
-import { WeatherService } from './weatherService';
+import {query} from '../config/database';
+import {DeviceService} from './deviceService';
+import {WeatherService} from './weatherService';
 import {
   Device,
   DeviceType,
@@ -47,10 +47,10 @@ export class SimulationEngine {
 
     console.log(`🚀 Starting HEMS simulation engine (interval: ${this.simulationIntervalMs}ms)`);
     this.isRunning = true;
-    
+
     // Run immediately, then at intervals
     this.runSimulationCycle();
-    
+
     this.intervalId = setInterval(() => {
       this.runSimulationCycle();
     }, this.simulationIntervalMs);
@@ -66,7 +66,7 @@ export class SimulationEngine {
 
     console.log('⏹️ Stopping HEMS simulation engine');
     this.isRunning = false;
-    
+
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
@@ -79,10 +79,10 @@ export class SimulationEngine {
   private async runSimulationCycle(): Promise<void> {
     try {
       console.log('🔄 Running simulation cycle...');
-      
+
       // 1. Get all dwellings
       const dwellings = await this.getAllDwellings();
-      
+
       if (dwellings.length === 0) {
         console.log('No dwellings found, skipping simulation cycle');
         return;
@@ -90,7 +90,7 @@ export class SimulationEngine {
 
       // 2. Fetch weather data for all dwelling locations
       const weatherDataMap = await WeatherService.getWeatherDataBatch(
-        dwellings.map(d => ({ dwellingId: d.dwellingId, location: d.location }))
+        dwellings.map(d => ({dwellingId: d.dwellingId, location: d.location}))
       );
 
       // 3. Process each dwelling
@@ -114,10 +114,10 @@ export class SimulationEngine {
       }
 
       console.log(`✅ Simulation cycle completed for ${simulationUpdates.length} dwellings`);
-      
+
       // Broadcast updates via WebSocket
       this.broadcastUpdates(simulationUpdates);
-      
+
     } catch (error) {
       console.error('Simulation cycle error:', error);
     }
@@ -129,7 +129,7 @@ export class SimulationEngine {
   private async simulateDwelling(dwelling: Dwelling, weatherData: WeatherData): Promise<SimulationUpdate | null> {
     // Get all devices for this dwelling
     const devices = await DeviceService.getDwellingDevices(dwelling.dwellingId);
-    
+
     if (devices.length === 0) {
       return null;
     }
@@ -252,7 +252,7 @@ export class SimulationEngine {
         const maxChargePowerW = batteryConfig.maxChargePowerW;
         const availableCapacityKwh = batteryConfig.capacityKwh * (batteryConfig.maxSoc - batteryState.batteryLevel);
         const maxChargeByCapacityW = availableCapacityKwh * 1000 * 4; // Assuming 4C charge rate limit
-        
+
         const actualChargePowerW = Math.min(
           remainingSolar,
           maxChargePowerW,
@@ -320,7 +320,7 @@ export class SimulationEngine {
     for (const inverter of devicesByType.solarInverter) {
       const config = inverter.config as SolarInverterConfig;
       const currentState = inverter.state as SolarInverterState;
-      
+
       const powerW = WeatherService.calculateSolarPower(
         weatherData.solarIrradianceWm2,
         config.kwPeak,
@@ -336,7 +336,7 @@ export class SimulationEngine {
         totalEnergyKwh: currentState.totalEnergyKwh + (powerW / 1000 / 120) // Assuming 30-second intervals = 120 intervals per hour
       };
 
-      updates.push({ deviceId: inverter.deviceId, state: newState });
+      updates.push({deviceId: inverter.deviceId, state: newState});
     }
 
     // Update battery
@@ -348,7 +348,7 @@ export class SimulationEngine {
       // Calculate new battery level
       const energyChangeKwh = (energyFlows.batteryPower / 1000) * (this.simulationIntervalMs / 1000 / 3600);
       let newBatteryLevel = currentState.batteryLevel + (energyChangeKwh / config.capacityKwh) * config.efficiency;
-      
+
       // Clamp battery level to valid range
       newBatteryLevel = Math.max(config.minSoc, Math.min(config.maxSoc, newBatteryLevel));
 
@@ -360,7 +360,7 @@ export class SimulationEngine {
         temperatureC: weatherData.temperatureC + Math.random() * 4 - 2 // Battery temp ≈ ambient ± 2°C
       };
 
-      updates.push({ deviceId: battery.deviceId, state: newState });
+      updates.push({deviceId: battery.deviceId, state: newState});
     }
 
     // Update meter
@@ -371,10 +371,10 @@ export class SimulationEngine {
       const newState: MeterState = {
         ...currentState,
         powerW: Math.round(energyFlows.netGridPower),
-        energyImportTodayKwh: energyFlows.netGridPower > 0 
+        energyImportTodayKwh: energyFlows.netGridPower > 0
           ? this.updateDailyEnergy(currentState.energyImportTodayKwh, energyFlows.netGridPower)
           : currentState.energyImportTodayKwh,
-        energyExportTodayKwh: energyFlows.netGridPower < 0 
+        energyExportTodayKwh: energyFlows.netGridPower < 0
           ? this.updateDailyEnergy(currentState.energyExportTodayKwh, -energyFlows.netGridPower)
           : currentState.energyExportTodayKwh,
         totalEnergyImportKwh: energyFlows.netGridPower > 0
@@ -385,27 +385,27 @@ export class SimulationEngine {
           : currentState.totalEnergyExportKwh
       };
 
-      updates.push({ deviceId: meter.deviceId, state: newState });
+      updates.push({deviceId: meter.deviceId, state: newState});
     }
 
     // Update appliances (simulate some random on/off behavior for demo)
     for (const appliance of devicesByType.appliance) {
       const currentState = appliance.state as ApplianceState;
-      
+
       // Random chance to change state (for demonstration)
       const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
       const newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
-      
+
       const newState: ApplianceState = {
         ...currentState,
         isOn: newIsOn,
         powerW: newIsOn ? currentState.powerW : 0,
-        energyTodayKwh: newIsOn 
+        energyTodayKwh: newIsOn
           ? this.updateDailyEnergy(currentState.energyTodayKwh, currentState.powerW)
           : currentState.energyTodayKwh
       };
 
-      updates.push({ deviceId: appliance.deviceId, state: newState });
+      updates.push({deviceId: appliance.deviceId, state: newState});
     }
 
     // Batch update all device states
@@ -429,7 +429,7 @@ export class SimulationEngine {
   private updateDailyEnergy(currentDailyKwh: number, powerW: number): number {
     //const now = DateTime.now();
     const energyIncrementKwh = (powerW / 1000) * (this.simulationIntervalMs / 1000 / 3600);
-    
+
     // TODO: Implement proper daily reset logic based on timezone
     // For now, just accumulate
     return currentDailyKwh + energyIncrementKwh;
@@ -471,7 +471,7 @@ export class SimulationEngine {
    */
   private async getAllDwellings(): Promise<Dwelling[]> {
     const result = await query('SELECT dwelling_id, user_id, time_zone, location FROM dwellings');
-    
+
     return result.rows.map(row => ({
       dwellingId: row.dwelling_id,
       userId: row.user_id,
@@ -486,12 +486,12 @@ export class SimulationEngine {
   private broadcastUpdates(updates: SimulationUpdate[]): void {
     try {
       // Import io dynamically to avoid circular dependency
-      const { io } = require('../server');
-      
+      const {io} = require('../server');
+
       for (const update of updates) {
         // Broadcast to dwelling-specific room
         io.to(`dwelling-${update.dwellingId}`).emit('simulation-update', update);
-        
+
         // Also broadcast to general simulation room for dashboard views
         io.to('simulation').emit('dwelling-update', {
           dwellingId: update.dwellingId,
@@ -500,7 +500,7 @@ export class SimulationEngine {
           weatherData: update.weatherData
         });
       }
-      
+
       console.log(`📡 Broadcasted updates for ${updates.length} dwellings via WebSocket`);
     } catch (error) {
       console.error('WebSocket broadcast error:', error);
