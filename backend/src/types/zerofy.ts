@@ -16,6 +16,7 @@ export const ZerofyDeviceStatusSchema = z.object({
   status: z.enum(['online', 'offline', 'error']),
   power: z.number(), // Current power in watts
   energy: z.number(), // Energy today in kWh
+  batteryLevel: z.number(),
   lastUpdate: z.string().datetime(),
   metadata: z.record(z.unknown()).optional()
 });

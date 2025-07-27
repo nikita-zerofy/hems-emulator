@@ -192,6 +192,7 @@ export class ZerofyService {
 
     let power = 0;
     let energy = 0;
+    let batteryLevel = 0;
 
     // Extract power and energy based on device type
     switch (device.deviceType) {
@@ -205,6 +206,7 @@ export class ZerofyService {
         const state = device.state as BatteryState;
         power = state.powerW;
         energy = 0; // Batteries don't have daily energy generation
+        batteryLevel = state.batteryLevel * 100;
         break;
       }
       case DeviceType.Appliance: {
@@ -227,6 +229,7 @@ export class ZerofyService {
       status: isOnline ? 'online' : 'offline',
       power: Math.round(power),
       energy: Math.round(energy * 100) / 100, // Round to 2 decimal places
+      batteryLevel: Math.round(batteryLevel),
       lastUpdate: device.updatedAt.toString(),
       metadata: {
         deviceType: device.deviceType,
