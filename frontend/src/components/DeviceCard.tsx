@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, Sun, Battery, Zap, Home } from 'lucide-react';
 import { format } from 'date-fns';
-import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState } from '../types';
+import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState, BatteryControlCommand, BatteryControlMode } from '../types';
 import { apiClient } from '../utils/api';
 
 interface DeviceCardProps {
@@ -11,6 +11,7 @@ interface DeviceCardProps {
 
 const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
   const [loading, setLoading] = useState(false);
+  const [controlLoading, setControlLoading] = useState(false);
 
   const getDeviceIcon = () => {
     switch (device.deviceType) {
@@ -129,6 +130,19 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     }
   };
 
+  const handleBatteryControl = async (mode: BatteryControlMode, powerW?: number) => {
+    try {
+      setControlLoading(true);
+      const command: BatteryControlCommand = { mode, powerW };
+      await apiClient.controlBattery(device.deviceId, command);
+      alert(`Battery control set to ${mode}${powerW ? ` at ${powerW}W` : ''}`);
+    } catch (err) {
+      alert('Failed to control battery: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
   const isOnline = device.state && 'isOnline' in device.state ? device.state.isOnline : true;
 
   return (
@@ -168,6 +182,82 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       {/* Metrics */}
       {renderMetrics()}
+
+      {/* Battery Controls */}
+      {device.deviceType === DeviceType.Battery && (
+        <div style={{ 
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #f3f4f6'
+        }}>
+          <div style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: '500', 
+            marginBottom: '0.5rem',
+            color: '#374151'
+          }}>
+            Battery Control
+          </div>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr',
+            gap: '0.5rem'
+          }}>
+            <button
+              onClick={() => handleBatteryControl('auto')}
+              disabled={controlLoading}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Auto
+            </button>
+            <button
+              onClick={() => handleBatteryControl('idle')}
+              disabled={controlLoading}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Idle
+            </button>
+            <button
+              onClick={() => {
+                const power = prompt('Enter charge power (W):', '2000');
+                if (power && !isNaN(Number(power))) {
+                  handleBatteryControl('force_charge', Number(power));
+                }
+              }}
+              disabled={controlLoading}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Force Charge
+            </button>
+            <button
+              onClick={() => {
+                const power = prompt('Enter discharge power (W):', '2000');
+                if (power && !isNaN(Number(power))) {
+                  handleBatteryControl('force_discharge', Number(power));
+                }
+              }}
+              disabled={controlLoading}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Force Discharge
+            </button>
+          </div>
+          {controlLoading && (
+            <div style={{ 
+              textAlign: 'center', 
+              marginTop: '0.5rem',
+              fontSize: '0.75rem',
+              color: '#6b7280'
+            }}>
+              Sending command...
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{ 

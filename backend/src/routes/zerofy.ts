@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
-import { ZerofyApiResponse, ZerofyAuth } from '../types/zerofy';
+import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema } from '../types/zerofy';
 import { z } from 'zod';
 
 const router = Router();
@@ -215,6 +215,56 @@ router.get('/devices/:deviceId/status',
     }
   }
 );
+
+/**
+ * POST /api/zerofy/devices/:deviceId/control
+ * Control battery charge/discharge mode
+ */
+router.post('/devices/:deviceId/control',
+  authenticateZerofyToken,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.zerofyUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const { deviceId } = req.params;
+      const controlCommand = ZerofyBatteryControlSchema.parse(req.body);
+
+      await ZerofyService.controlBattery(deviceId, req.zerofyUser.userId, controlCommand);
+
+      const response: ZerofyApiResponse = {
+        success: true,
+        data: {
+          message: 'Battery control command executed successfully',
+          deviceId,
+          command: controlCommand
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(200).json(response);
+    } catch (error) {
+      console.error('Zerofy battery control error:', error);
+
+      const response: ZerofyApiResponse = {
+        success: false,
+        error: {
+          code: 'CONTROL_FAILED',
+          message: error instanceof Error ? error.message : 'Failed to control battery'
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(400).json(response);
+    }
+  });
 
 /**
  * GET /api/zerofy/health

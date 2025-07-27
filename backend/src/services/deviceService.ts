@@ -1,5 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
-import { query } from '../config/database';
+import {v4 as uuidv4} from 'uuid';
+import {query} from '../config/database';
 import {
   Device,
   DeviceType,
@@ -8,6 +8,7 @@ import {
   BatteryState,
   ApplianceState,
   MeterState,
+  BatteryControlCommand,
   SolarInverterConfigSchema,
   SolarInverterStateSchema,
   BatteryConfigSchema,
@@ -34,9 +35,9 @@ export class DeviceService {
 
     const deviceId = uuidv4();
     const result = await query(
-      `INSERT INTO devices (device_id, dwelling_id, device_type, name, config, state) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
+      `INSERT INTO devices (device_id, dwelling_id, device_type, name, config, state)
+       VALUES ($1, $2, $3, $4, $5,
+               $6) RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
       [
         deviceId,
         dwellingId,
@@ -69,8 +70,15 @@ export class DeviceService {
    */
   static async getDevice(deviceId: string): Promise<Device | null> {
     const result = await query(
-      `SELECT device_id, dwelling_id, device_type, name, config, state, created_at, updated_at 
-       FROM devices 
+      `SELECT device_id,
+              dwelling_id,
+              device_type,
+              name,
+              config,
+              state,
+              created_at,
+              updated_at
+       FROM devices
        WHERE device_id = $1`,
       [deviceId]
     );
@@ -97,9 +105,16 @@ export class DeviceService {
    */
   static async getDwellingDevices(dwellingId: string): Promise<Device[]> {
     const result = await query(
-      `SELECT device_id, dwelling_id, device_type, name, config, state, created_at, updated_at 
-       FROM devices 
-       WHERE dwelling_id = $1 
+      `SELECT device_id,
+              dwelling_id,
+              device_type,
+              name,
+              config,
+              state,
+              created_at,
+              updated_at
+       FROM devices
+       WHERE dwelling_id = $1
        ORDER BY created_at ASC`,
       [dwellingId]
     );
@@ -130,10 +145,10 @@ export class DeviceService {
     const validatedConfig = this.validateDeviceConfig(currentDevice.deviceType, config);
 
     const result = await query(
-      `UPDATE devices 
-       SET config = $1, updated_at = CURRENT_TIMESTAMP 
-       WHERE device_id = $2 
-       RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
+      `UPDATE devices
+       SET config = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE device_id = $2 RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
       [JSON.stringify(validatedConfig), deviceId]
     );
 
@@ -168,10 +183,10 @@ export class DeviceService {
     const validatedState = this.validateDeviceState(currentDevice.deviceType, state);
 
     const result = await query(
-      `UPDATE devices 
-       SET state = $1, updated_at = CURRENT_TIMESTAMP 
-       WHERE device_id = $2 
-       RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
+      `UPDATE devices
+       SET state = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE device_id = $2 RETURNING device_id, dwelling_id, device_type, name, config, state, created_at, updated_at`,
       [JSON.stringify(validatedState), deviceId]
     );
 
@@ -209,7 +224,7 @@ export class DeviceService {
     // Build batch update query with proper JSONB casting
     const values: unknown[] = [];
     const updateCases: string[] = [];
-    
+
     for (let i = 0; i < updates.length; i++) {
       const update = updates[i];
       const paramIndex = i * 2 + 1;
@@ -222,8 +237,8 @@ export class DeviceService {
     values.push(...deviceIds);
 
     await query(
-      `UPDATE devices 
-       SET state = CASE device_id ${updateCases.join(' ')} END,
+      `UPDATE devices
+       SET state      = CASE device_id ${updateCases.join(' ')} END,
            updated_at = CURRENT_TIMESTAMP
        WHERE device_id IN (${placeholders})`,
       values
@@ -278,15 +293,16 @@ export class DeviceService {
           totalEnergyKwh: 0,
           isOnline: true
         } satisfies SolarInverterState;
-      
+
       case DeviceType.Battery:
         return {
           batteryLevel: 0.5, // Start at 50% charge
           powerW: 0,
           isCharging: false,
-          isOnline: true
+          isOnline: true,
+          controlMode: "auto" // Default mode, adjust if needed
         } satisfies BatteryState;
-      
+
       case DeviceType.Appliance:
         return {
           isOn: false,
@@ -294,7 +310,7 @@ export class DeviceService {
           energyTodayKwh: 0,
           isOnline: true
         } satisfies ApplianceState;
-      
+
       case DeviceType.Meter:
         return {
           powerW: 0,
@@ -304,9 +320,43 @@ export class DeviceService {
           totalEnergyExportKwh: 0,
           isOnline: true
         } satisfies MeterState;
-      
+
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
     }
+  }
+
+  /**
+   * Control battery charge/discharge mode
+   */
+  static async controlBattery(deviceId: string, command: BatteryControlCommand): Promise<void> {
+    // Validate device exists and is a battery
+    const deviceResult = await query(
+      'SELECT device_id, device_type, state FROM devices WHERE device_id = $1',
+      [deviceId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      throw new Error('Device not found');
+    }
+
+    const device = deviceResult.rows[0];
+    if (device.device_type !== 'battery') {
+      throw new Error('Device is not a battery');
+    }
+
+    // Parse current state and update control mode
+    const currentState = BatteryStateSchema.parse(device.state);
+    const updatedState: BatteryState = {
+      ...currentState,
+      controlMode: command.mode,
+      forcePowerW: command.powerW
+    };
+
+    // Update database
+    await query(
+      'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
+      [JSON.stringify(updatedState), deviceId]
+    );
   }
 } 

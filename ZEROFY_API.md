@@ -44,7 +44,7 @@ Content-Type: application/json
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "tokenType": "Bearer",
-    "expiresIn": 86400,
+    "expiresIn": null,
     "scope": "device:read device:status",
     "userId": "12345678-1234-1234-1234-123456789abc",
     "clientId": "zerofy-app"
@@ -218,6 +218,51 @@ Authorization: Bearer [access_token]
 }
 ```
 
+### 5. Battery Control
+
+**Endpoint:** `POST /api/zerofy/devices/{deviceId}/control`
+
+**Description:** Control battery charge/discharge mode for battery devices.
+
+**Required Scope:** `device:control` (automatically granted with device:status)
+
+**Request:**
+```http
+POST /api/zerofy/devices/dev_123456789/control
+Authorization: Bearer [access_token]
+Content-Type: application/json
+
+{
+  "mode": "force_charge",
+  "powerW": 2000
+}
+```
+
+**Control Modes:**
+- `auto`: Normal automatic operation based on solar/load
+- `force_charge`: Force battery to charge at specified power
+- `force_discharge`: Force battery to discharge at specified power  
+- `idle`: Battery remains idle (no charge/discharge)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Battery control command executed successfully",
+    "deviceId": "dev_123456789",
+    "command": {
+      "mode": "force_charge",
+      "powerW": 2000
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
 ## Device Types and Capabilities
 
 ### Device Types
@@ -340,10 +385,40 @@ curl -X GET http://localhost:3001/api/zerofy/devices/dev_123456789/status \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
+### 4. Control Battery
+
+```bash
+# Force charge at 2000W
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_123456789/control \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "force_charge",
+    "powerW": 2000
+  }'
+
+# Force discharge at 1500W
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_123456789/control \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "force_discharge",
+    "powerW": 1500
+  }'
+
+# Set to automatic mode
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_123456789/control \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "auto"
+  }'
+```
+
 ## Security Considerations
 
 1. **Credentials:** Store user credentials securely and use secure transmission
-2. **Access Tokens:** Access tokens expire after 24 hours and must be refreshed
+2. **Access Tokens:** Current tokens do not expire (for development/testing purposes)
 3. **HTTPS:** Use HTTPS in production environments
 4. **Scopes:** Request only the minimum required scopes
 5. **Rate Limiting:** Implement client-side rate limiting to avoid hitting limits

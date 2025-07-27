@@ -242,26 +242,78 @@ export class SimulationEngine {
     remainingSolar -= flows.solarToLoad;
     remainingLoad -= flows.solarToLoad;
 
-    // 2. Handle excess solar power
-    if (remainingSolar > 0 && battery) {
+    // 2. Handle battery control modes and excess solar power
+    if (battery) {
       const batteryConfig = battery.config as BatteryConfig;
       const batteryState = battery.state as BatteryState;
+      const controlMode = batteryState.controlMode ?? 'auto';
 
-      if (batteryState.isOnline && batteryState.batteryLevel < batteryConfig.maxSoc) {
-        // Battery can accept charge
-        const maxChargePowerW = batteryConfig.maxChargePowerW;
-        const availableCapacityKwh = batteryConfig.capacityKwh * (batteryConfig.maxSoc - batteryState.batteryLevel);
-        const maxChargeByCapacityW = availableCapacityKwh * 1000 * 4; // Assuming 4C charge rate limit
+      if (batteryState.isOnline) {
+        // Handle forced charge mode
+        if (controlMode === 'force_charge' && batteryState.forcePowerW) {
+          const maxChargePowerW = Math.min(
+            batteryState.forcePowerW,
+            batteryConfig.maxChargePowerW
+          );
+          
+          if (batteryState.batteryLevel < batteryConfig.maxSoc) {
+            const availableCapacityKwh = batteryConfig.capacityKwh * (batteryConfig.maxSoc - batteryState.batteryLevel);
+            const maxChargeByCapacityW = availableCapacityKwh * 1000 * 4;
+            
+            const actualChargePowerW = Math.min(maxChargePowerW, maxChargeByCapacityW);
+            
+            if (actualChargePowerW <= remainingSolar) {
+              flows.solarToBattery = actualChargePowerW;
+              flows.batteryPower = actualChargePowerW;
+              remainingSolar -= actualChargePowerW;
+            } else {
+              // Need to import from grid to meet force charge target
+              flows.solarToBattery = remainingSolar;
+              flows.gridToBattery = actualChargePowerW - remainingSolar;
+              flows.batteryPower = actualChargePowerW;
+              flows.netGridPower += flows.gridToBattery;
+              remainingSolar = 0;
+            }
+          }
+        }
+        // Handle forced discharge mode
+        else if (controlMode === 'force_discharge' && batteryState.forcePowerW) {
+          const maxDischargePowerW = Math.min(
+            Math.abs(batteryState.forcePowerW),
+            batteryConfig.maxDischargePowerW
+          );
+          
+          if (batteryState.batteryLevel > batteryConfig.minSoc) {
+            const availableEnergyKwh = batteryConfig.capacityKwh * (batteryState.batteryLevel - batteryConfig.minSoc);
+            const maxDischargeByCapacityW = availableEnergyKwh * 1000 * 4;
+            
+            const actualDischargePowerW = Math.min(maxDischargePowerW, maxDischargeByCapacityW);
+            
+            flows.batteryPower = -actualDischargePowerW;
+            // Force discharge goes to grid export (simulating battery selling to grid)
+            flows.netGridPower -= actualDischargePowerW;
+          }
+        }
+        // Handle idle mode (no battery action)
+        else if (controlMode === 'idle') {
+          flows.batteryPower = 0;
+        }
+        // Handle auto mode (normal logic)
+        else if (controlMode === 'auto' && remainingSolar > 0 && batteryState.batteryLevel < batteryConfig.maxSoc) {
+          const maxChargePowerW = batteryConfig.maxChargePowerW;
+          const availableCapacityKwh = batteryConfig.capacityKwh * (batteryConfig.maxSoc - batteryState.batteryLevel);
+          const maxChargeByCapacityW = availableCapacityKwh * 1000 * 4;
 
-        const actualChargePowerW = Math.min(
-          remainingSolar,
-          maxChargePowerW,
-          maxChargeByCapacityW
-        );
+          const actualChargePowerW = Math.min(
+            remainingSolar,
+            maxChargePowerW,
+            maxChargeByCapacityW
+          );
 
-        flows.solarToBattery = actualChargePowerW;
-        flows.batteryPower = actualChargePowerW;
-        remainingSolar -= actualChargePowerW;
+          flows.solarToBattery = actualChargePowerW;
+          flows.batteryPower = actualChargePowerW;
+          remainingSolar -= actualChargePowerW;
+        }
       }
     }
 
@@ -273,15 +325,18 @@ export class SimulationEngine {
 
     // 4. Handle remaining load
     if (remainingLoad > 0) {
-      // Try to use battery first
+      // Try to use battery first (only in auto mode)
       if (battery) {
         const batteryConfig = battery.config as BatteryConfig;
         const batteryState = battery.state as BatteryState;
+        const controlMode = batteryState.controlMode ?? 'auto';
 
-        if (batteryState.isOnline && batteryState.batteryLevel > batteryConfig.minSoc) {
+        if (batteryState.isOnline && 
+            batteryState.batteryLevel > batteryConfig.minSoc && 
+            controlMode === 'auto') {
           const maxDischargePowerW = batteryConfig.maxDischargePowerW;
           const availableEnergyKwh = batteryConfig.capacityKwh * (batteryState.batteryLevel - batteryConfig.minSoc);
-          const maxDischargeByCapacityW = availableEnergyKwh * 1000 * 4; // Assuming 4C discharge rate limit
+          const maxDischargeByCapacityW = availableEnergyKwh * 1000 * 4;
 
           const actualDischargePowerW = Math.min(
             remainingLoad,
@@ -290,7 +345,7 @@ export class SimulationEngine {
           );
 
           flows.batteryToLoad = actualDischargePowerW;
-          flows.batteryPower = -actualDischargePowerW; // Negative for discharge
+          flows.batteryPower = -actualDischargePowerW;
           remainingLoad -= actualDischargePowerW;
         }
       }

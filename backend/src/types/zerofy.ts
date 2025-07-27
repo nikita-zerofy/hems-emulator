@@ -87,7 +87,7 @@ export type ZerofyApiResponse<T = unknown> = {
 export const ZerofyAuthResponseSchema = z.object({
   accessToken: z.string(),
   tokenType: z.literal('Bearer'),
-  expiresIn: z.number(),
+  expiresIn: z.number().nullable(), // Allow null for non-expiring tokens
   scope: z.string().optional(),
   userId: z.string(),
   clientId: z.string()
@@ -109,4 +109,12 @@ export const DEVICE_CAPABILITIES = {
   battery: ['energy_storage', 'power_control', 'soc_monitoring'],
   meter: ['power_monitoring', 'energy_monitoring', 'bidirectional_flow'],
   appliance: ['power_control', 'energy_monitoring', 'remote_control']
-} as const; 
+} as const;
+
+// Zerofy Battery Control
+export const ZerofyBatteryControlSchema = z.object({
+  mode: z.enum(['auto', 'force_charge', 'force_discharge', 'idle']),
+  powerW: z.number().optional()
+});
+
+export type ZerofyBatteryControl = z.infer<typeof ZerofyBatteryControlSchema>; 

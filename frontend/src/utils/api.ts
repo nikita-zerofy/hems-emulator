@@ -8,6 +8,7 @@ import {
   LoginForm, 
   RegisterForm, 
   CreateDwellingForm,
+  BatteryControlCommand,
   CreateDeviceForm 
 } from '../types';
 
@@ -176,6 +177,12 @@ class ApiClient {
     }
   }
 
+  // Battery Control
+  async controlBattery(deviceId: string, command: BatteryControlCommand): Promise<ApiResponse> {
+    const response = await this.client.post(`/devices/${deviceId}/control`, command);
+    return response.data;
+  }
+
   // Health check
   async healthCheck(): Promise<boolean> {
     try {
@@ -209,5 +216,5 @@ export const authUtils = {
   clearAuth(): void {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
-  }
+  },
 }; 

@@ -148,4 +148,11 @@ export interface CreateDeviceForm {
   deviceType: DeviceType;
   name?: string;
   config: Record<string, unknown>;
-} 
+}
+
+export type BatteryControlMode = 'auto' | 'force_charge' | 'force_discharge' | 'idle';
+
+export interface BatteryControlCommand {
+  mode: BatteryControlMode;
+  powerW?: number;
+}

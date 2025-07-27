@@ -87,9 +87,8 @@ export class AuthService {
     };
 
     // @ts-ignore
-    return jwt.sign(payload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN
-    });
+    // Create non-expiring token for development/testing
+    return jwt.sign(payload, JWT_SECRET);
   }
 
   /**

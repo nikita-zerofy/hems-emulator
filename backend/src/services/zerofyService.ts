@@ -9,6 +9,7 @@ import {
   ZerofyDeviceList,
   ZerofyDeviceDetails,
   ZerofyDeviceStatus,
+  ZerofyBatteryControl,
   DEVICE_TYPE_MAPPING,
   DEVICE_CAPABILITIES
 } from '../types/zerofy';
@@ -18,7 +19,8 @@ import {
   SolarInverterState,
   BatteryState,
   ApplianceState,
-  MeterState
+  MeterState,
+  BatteryControlCommand
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -50,6 +52,7 @@ export class ZerofyService {
     }
 
     // Generate Zerofy-specific access token
+    // Create non-expiring token for development/testing
     const accessToken = jwt.sign(
       {
         userId: user.user_id,
@@ -58,14 +61,14 @@ export class ZerofyService {
         scope: 'device:read device:status',
         type: 'zerofy_api'
       },
-      JWT_SECRET,
-      {expiresIn: ZEROFY_TOKEN_EXPIRES_IN}
+      JWT_SECRET
+      // No expiresIn option = token never expires
     );
 
     return {
       accessToken,
       tokenType: 'Bearer',
-      expiresIn: 24 * 60 * 60, // 24 hours in seconds
+      expiresIn: null, // Token never expires
       scope: 'device:read device:status',
       userId: user.user_id,
       clientId: auth.clientId ?? 'zerofy-app'
@@ -238,7 +241,37 @@ export class ZerofyService {
     };
   }
 
-  /**sc
+  /**
+   * Control battery charge/discharge mode for Zerofy app
+   */
+  static async controlBattery(deviceId: string, userId: string, control: ZerofyBatteryControl): Promise<void> {
+    // Verify user has access to this device
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    // Verify device is a battery
+    if (device.deviceType !== DeviceType.Battery) {
+      throw new Error('Device is not a battery');
+    }
+
+    // Convert Zerofy control to internal command
+    const command: BatteryControlCommand = {
+      mode: control.mode,
+      powerW: control.powerW
+    };
+
+    // Use existing device service method
+    await DeviceService.controlBattery(deviceId, command);
+  }
+
+  /**
    * Verify Zerofy JWT token
    */
   static verifyZerofyToken(token: string): any {

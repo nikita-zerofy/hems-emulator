@@ -2,7 +2,7 @@ import {Router, Request, Response} from 'express';
 import {DeviceService} from '../services/deviceService';
 import {DwellingService} from '../services/dwellingService';
 import {authenticateToken} from '../middleware/auth';
-import {ApiResponse, DeviceType} from '../types';
+import {ApiResponse, DeviceType, BatteryControlCommandSchema} from '../types';
 import {z} from 'zod';
 
 const router = Router();
@@ -288,6 +288,35 @@ router.get('/dwellings/:dwellingId/devices', async (req: Request, res: Response)
     };
 
     return res.status(500).json(response);
+  }
+});
+
+/**
+ * POST /devices/:deviceId/control
+ * Control battery charge/discharge mode
+ */
+router.post('/devices/:deviceId/control', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const deviceId = req.params.deviceId;
+    const command = BatteryControlCommandSchema.parse(req.body);
+
+    await DeviceService.controlBattery(deviceId, command);
+
+    const response: ApiResponse = {
+      success: true,
+      message: 'Battery control command sent successfully'
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Battery control error:', error);
+
+    const response: ApiResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to control battery'
+    };
+
+    return res.status(400).json(response);
   }
 });
 

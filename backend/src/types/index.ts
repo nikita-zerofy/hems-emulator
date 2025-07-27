@@ -74,12 +74,17 @@ export const SolarInverterStateSchema = z.object({
   isOnline: z.boolean()
 });
 
+export const BatteryControlModeSchema = z.enum(['auto', 'force_charge', 'force_discharge', 'idle']);
+export type BatteryControlMode = z.infer<typeof BatteryControlModeSchema>;
+
 export const BatteryStateSchema = z.object({
   batteryLevel: z.number().min(0).max(1), // State of charge (0-1)
   powerW: z.number(), // Positive for charging, negative for discharging
   isCharging: z.boolean(),
   isOnline: z.boolean(),
-  temperatureC: z.number().optional()
+  temperatureC: z.number().optional(),
+  controlMode: BatteryControlModeSchema.default('auto'),
+  forcePowerW: z.number().optional() // Power target when in force mode
 });
 
 export const ApplianceStateSchema = z.object({
@@ -120,6 +125,13 @@ export type MeterConfig = z.infer<typeof MeterConfigSchema>;
 
 export type SolarInverterState = z.infer<typeof SolarInverterStateSchema>;
 export type BatteryState = z.infer<typeof BatteryStateSchema>;
+
+export const BatteryControlCommandSchema = z.object({
+  mode: BatteryControlModeSchema,
+  powerW: z.number().optional() // Required for force_charge/force_discharge
+});
+
+export type BatteryControlCommand = z.infer<typeof BatteryControlCommandSchema>;
 export type ApplianceState = z.infer<typeof ApplianceStateSchema>;
 export type MeterState = z.infer<typeof MeterStateSchema>;
 
