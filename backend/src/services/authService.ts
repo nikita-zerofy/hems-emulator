@@ -5,7 +5,7 @@ import {query} from '../config/database';
 import {UserWithoutPassword, JwtPayload, UserSchema} from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN ?? '7d';
+// const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN ?? '7d';
 const SALT_ROUNDS = 12;
 
 export class AuthService {
