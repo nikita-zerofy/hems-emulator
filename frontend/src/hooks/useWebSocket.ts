@@ -4,7 +4,9 @@ import { SimulationUpdate } from '../types';
 
 
 // @ts-ignore
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Convert HTTP(S) URL to WebSocket URL
+const WS_URL = import.meta.env.VITE_WS_URL || API_URL.replace(/^http/, 'ws');
 
 export interface DwellingUpdate {
   dwellingId: string;
