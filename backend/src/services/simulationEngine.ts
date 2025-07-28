@@ -2,6 +2,7 @@
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {WeatherService} from './weatherService';
+import { createModuleLogger } from '../config/logger';
 import {
   Device,
   DeviceType,
@@ -21,6 +22,7 @@ export class SimulationEngine {
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
   private readonly simulationIntervalMs: number;
+  private logger = createModuleLogger('simulation');
 
   private constructor(simulationIntervalMs: number = 30000) { // 30 seconds default
     this.simulationIntervalMs = simulationIntervalMs;
@@ -41,11 +43,13 @@ export class SimulationEngine {
    */
   start(): void {
     if (this.isRunning) {
-      console.log('Simulation engine is already running');
+      this.logger.warn('Simulation engine is already running');
       return;
     }
 
-    console.log(`🚀 Starting HEMS simulation engine (interval: ${this.simulationIntervalMs}ms)`);
+    this.logger.info({ 
+      intervalMs: this.simulationIntervalMs 
+    }, 'Starting HEMS simulation engine');
     this.isRunning = true;
 
     // Run immediately, then at intervals
@@ -64,7 +68,7 @@ export class SimulationEngine {
       return;
     }
 
-    console.log('⏹️ Stopping HEMS simulation engine');
+    this.logger.info('Stopping HEMS simulation engine');
     this.isRunning = false;
 
     if (this.intervalId) {
@@ -78,15 +82,17 @@ export class SimulationEngine {
    */
   private async runSimulationCycle(): Promise<void> {
     try {
-      console.log('🔄 Running simulation cycle...');
+      this.logger.debug('Running simulation cycle');
 
       // 1. Get all dwellings
       const dwellings = await this.getAllDwellings();
 
       if (dwellings.length === 0) {
-        console.log('No dwellings found, skipping simulation cycle');
+        this.logger.debug('No dwellings found, skipping simulation cycle');
         return;
       }
+
+      this.logger.debug({ dwellingCount: dwellings.length }, 'Processing dwellings in simulation cycle');
 
       // 2. Fetch weather data for all dwelling locations
       const weatherDataMap = await WeatherService.getWeatherDataBatch(
@@ -100,7 +106,7 @@ export class SimulationEngine {
         try {
           const weatherData = weatherDataMap.get(dwelling.dwellingId);
           if (!weatherData) {
-            console.warn(`No weather data for dwelling ${dwelling.dwellingId}, skipping`);
+            this.logger.warn({ dwellingId: dwelling.dwellingId }, 'No weather data for dwelling, skipping');
             continue;
           }
 
@@ -109,17 +115,24 @@ export class SimulationEngine {
             simulationUpdates.push(update);
           }
         } catch (error) {
-          console.error(`Error simulating dwelling ${dwelling.dwellingId}:`, error);
+          this.logger.error({ 
+            dwellingId: dwelling.dwellingId,
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          }, 'Error simulating dwelling');
         }
       }
 
-      console.log(`✅ Simulation cycle completed for ${simulationUpdates.length} dwellings`);
+      this.logger.info({ 
+        dwellingCount: simulationUpdates.length 
+      }, 'Simulation cycle completed');
 
       // Broadcast updates via WebSocket
       this.broadcastUpdates(simulationUpdates);
 
     } catch (error) {
-      console.error('Simulation cycle error:', error);
+      this.logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }, 'Simulation cycle error');
     }
   }
 
@@ -556,9 +569,13 @@ export class SimulationEngine {
         });
       }
 
-      console.log(`📡 Broadcasted updates for ${updates.length} dwellings via WebSocket`);
+      this.logger.debug({ 
+        dwellingCount: updates.length 
+      }, 'Broadcasted simulation updates via WebSocket');
     } catch (error) {
-      console.error('WebSocket broadcast error:', error);
+      this.logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }, 'WebSocket broadcast error');
     }
   }
 }

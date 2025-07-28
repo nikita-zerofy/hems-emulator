@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import { AuthService } from '../services/authService';
 import { ApiResponse } from '../types';
 import { z } from 'zod';
+import { createModuleLogger } from '../config/logger';
 
 const router = Router();
+const logger = createModuleLogger('auth');
 
 // Request validation schemas
 const RegisterSchema = z.object({
@@ -22,9 +24,16 @@ const LoginSchema = z.object({
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
+    logger.info({ email: req.body.email }, 'User registration attempt');
+    
     const { email, password } = RegisterSchema.parse(req.body);
     
     const result = await AuthService.register(email, password);
+    
+    logger.info({ 
+      userId: result.user.userId, 
+      email: result.user.email 
+    }, 'User registered successfully');
     
     const response: ApiResponse = {
       success: true,
@@ -34,7 +43,10 @@ router.post('/register', async (req: Request, res: Response) => {
     
     res.status(201).json(response);
   } catch (error) {
-    console.error('Registration error:', error);
+    logger.error({ 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      email: req.body.email 
+    }, 'Registration failed');
     
     const response: ApiResponse = {
       success: false,
@@ -45,6 +57,7 @@ router.post('/register', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       response.error = 'Invalid input data';
       response.data = error.errors;
+      logger.warn({ validationErrors: error.errors }, 'Registration validation failed');
     }
     
     res.status(400).json(response);
@@ -57,9 +70,16 @@ router.post('/register', async (req: Request, res: Response) => {
  */
 router.post('/login', async (req: Request, res: Response) => {
   try {
+    logger.info({ email: req.body.email }, 'User login attempt');
+    
     const { email, password } = LoginSchema.parse(req.body);
     
     const result = await AuthService.login(email, password);
+    
+    logger.info({ 
+      userId: result.user.userId, 
+      email: result.user.email 
+    }, 'User logged in successfully');
     
     const response: ApiResponse = {
       success: true,
@@ -69,7 +89,10 @@ router.post('/login', async (req: Request, res: Response) => {
     
     res.status(200).json(response);
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error({ 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      email: req.body.email 
+    }, 'Login failed');
     
     const response: ApiResponse = {
       success: false,
@@ -80,6 +103,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       response.error = 'Invalid input data';
       response.data = error.errors;
+      logger.warn({ validationErrors: error.errors }, 'Login validation failed');
     }
     
     res.status(401).json(response);

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {DwellingService} from './dwellingService';
+import { createModuleLogger } from '../config/logger';
 import {
   ZerofyAuth,
   ZerofyAuthResponse,
@@ -27,6 +28,7 @@ const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_prod
 // const ZEROFY_TOKEN_EXPIRES_IN = '24h';
 
 export class ZerofyService {
+  private static logger = createModuleLogger('zerofy-service');
   /**
    * Authenticate Zerofy app using email and password
    */
@@ -276,12 +278,16 @@ export class ZerofyService {
    */
   static verifyZerofyToken(token: string): any {
     try {
-      console.log('Verifying Zerofy token:', token);
+      this.logger.debug({ token: token.substring(0, 20) + '...' }, 'Verifying Zerofy token');
       const result = jwt.verify(token, JWT_SECRET);
-      console.log('Verifying Zerofy token:', result);
+      this.logger.debug({ 
+        userId: typeof result === 'object' && result && 'userId' in result ? result.userId : 'unknown' 
+      }, 'Zerofy token verified successfully');
       return result
     } catch (error) {
-      console.log(error);
+      this.logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }, 'Zerofy token verification failed');
       throw new Error('Invalid or expired Zerofy token');
     }
   }

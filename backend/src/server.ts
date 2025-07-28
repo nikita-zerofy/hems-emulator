@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
+import { logger, requestLogger } from './config/logger';
 
 // Load environment variables
 dotenv.config();
@@ -52,11 +53,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
-app.use((req, _res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`${timestamp} ${req.method} ${req.path}`);
-  next();
-});
+app.use(requestLogger);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -78,34 +75,34 @@ app.use('/api/zerofy', zerofyRoutes);
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
+  logger.info({ socketId: socket.id }, 'WebSocket client connected');
 
   // Handle client joining a dwelling room for real-time updates
   socket.on('join-dwelling', (dwellingId: string) => {
     socket.join(`dwelling-${dwellingId}`);
-    console.log(`📡 Client ${socket.id} joined dwelling ${dwellingId}`);
+    logger.info({ socketId: socket.id, dwellingId }, 'Client joined dwelling room');
   });
 
   // Handle client leaving a dwelling room
   socket.on('leave-dwelling', (dwellingId: string) => {
     socket.leave(`dwelling-${dwellingId}`);
-    console.log(`📡 Client ${socket.id} left dwelling ${dwellingId}`);
+    logger.info({ socketId: socket.id, dwellingId }, 'Client left dwelling room');
   });
 
   // Handle client joining simulation room for general updates
   socket.on('join-simulation', () => {
     socket.join('simulation');
-    console.log(`📡 Client ${socket.id} joined simulation room`);
+    logger.info({ socketId: socket.id }, 'Client joined simulation room');
   });
 
   // Handle client leaving simulation room
   socket.on('leave-simulation', () => {
     socket.leave('simulation');
-    console.log(`📡 Client ${socket.id} left simulation room`);
+    logger.info({ socketId: socket.id }, 'Client left simulation room');
   });
 
   socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
+    logger.info({ socketId: socket.id }, 'WebSocket client disconnected');
   });
 });
 
@@ -134,7 +131,7 @@ app.use('*', (req, res) => {
 
 // Graceful shutdown handling
 const gracefulShutdown = (signal: string) => {
-  console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+  logger.info({ signal }, 'Received shutdown signal, shutting down gracefully');
   
   // Stop simulation engine
   const simulationEngine = SimulationEngine.getInstance();
@@ -142,13 +139,13 @@ const gracefulShutdown = (signal: string) => {
   
   // Close server
   server.close(() => {
-    console.log('✅ Server closed successfully');
+    logger.info('Server closed successfully');
     process.exit(0);
   });
   
   // Force close after timeout
   setTimeout(() => {
-    console.log('⚠️ Forced shutdown after timeout');
+    logger.warn('Forced shutdown after timeout');
     process.exit(1);
   }, 10000);
 };
@@ -163,18 +160,18 @@ async function startServer() {
     // Test database connection
     const dbConnected = await testConnection();
     if (!dbConnected) {
-      console.error('❌ Failed to connect to database');
+      logger.error('Failed to connect to database');
       process.exit(1);
     }
 
     // Start HTTP server
     server.listen(port, () => {
-      console.log(`🚀 HEMS Device Emulator API server running on port ${port}`);
-      console.log(`📊 Health check: http://localhost:${port}/health`);
-      console.log(`🔗 WebSocket endpoint: ws://localhost:${port}/socket.io/`);
+      logger.info({ port }, 'HEMS Device Emulator API server started');
+      logger.info({ url: `http://localhost:${port}/health` }, 'Health check endpoint ready');
+      logger.info({ url: `ws://localhost:${port}/socket.io/` }, 'WebSocket endpoint ready');
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🐛 Development mode - detailed logging enabled`);
+        logger.debug('Development mode - detailed logging enabled');
       }
     });
 
@@ -183,7 +180,7 @@ async function startServer() {
     simulationEngine.start();
     
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error({ error }, 'Failed to start server');
     process.exit(1);
   }
 }

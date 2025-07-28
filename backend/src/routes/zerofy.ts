@@ -3,8 +3,10 @@ import { ZerofyService } from '../services/zerofyService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
 import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema } from '../types/zerofy';
 import { z } from 'zod';
+import { createModuleLogger } from '../config/logger';
 
 const router = Router();
+const logger = createModuleLogger('zerofy-api');
 
 /**
  * POST /api/zerofy/auth
@@ -12,6 +14,11 @@ const router = Router();
  */
 router.post('/auth', async (req: Request, res: Response) => {
   try {
+    logger.info({ 
+      email: req.body.email,
+      clientId: req.body.clientId 
+    }, 'Zerofy API authentication attempt');
+
     const authSchema = z.object({
       email: z.string().email(),
       password: z.string(),
@@ -20,6 +27,12 @@ router.post('/auth', async (req: Request, res: Response) => {
 
     const authData: ZerofyAuth = authSchema.parse(req.body);
     const authResponse = await ZerofyService.authenticate(authData);
+
+    logger.info({ 
+      userId: authResponse.userId,
+      email: req.body.email,
+      clientId: req.body.clientId 
+    }, 'Zerofy API authentication successful');
 
     const response: ZerofyApiResponse = {
       success: true,
@@ -32,7 +45,11 @@ router.post('/auth', async (req: Request, res: Response) => {
 
     return res.status(200).json(response);
   } catch (error) {
-    console.error('Zerofy authentication error:', error);
+    logger.error({ 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      email: req.body.email,
+      clientId: req.body.clientId 
+    }, 'Zerofy API authentication failed');
 
     const response: ZerofyApiResponse = {
       success: false,
@@ -62,7 +79,16 @@ router.get('/devices',
         throw new Error('User not authenticated');
       }
 
+      logger.info({ 
+        userId: req.zerofyUser.userId 
+      }, 'Zerofy API: Fetching user devices');
+
       const devices = await ZerofyService.getDevices(req.zerofyUser.userId);
+
+      logger.info({ 
+        userId: req.zerofyUser.userId,
+        deviceCount: devices.length 
+      }, 'Zerofy API: Successfully fetched user devices');
 
       const response: ZerofyApiResponse = {
         success: true,
@@ -75,7 +101,10 @@ router.get('/devices',
 
       return res.status(200).json(response);
     } catch (error) {
-      console.error('Zerofy get devices error:', error);
+      logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.zerofyUser?.userId 
+      }, 'Zerofy API: Failed to fetch devices');
 
       const response: ZerofyApiResponse = {
         success: false,
@@ -231,7 +260,19 @@ router.post('/devices/:deviceId/control',
       const { deviceId } = req.params;
       const controlCommand = ZerofyBatteryControlSchema.parse(req.body);
 
+      logger.info({ 
+        userId: req.zerofyUser.userId,
+        deviceId,
+        command: controlCommand 
+      }, 'Zerofy API: Battery control command received');
+
       await ZerofyService.controlBattery(deviceId, req.zerofyUser.userId, controlCommand);
+
+      logger.info({ 
+        userId: req.zerofyUser.userId,
+        deviceId,
+        command: controlCommand 
+      }, 'Zerofy API: Battery control command executed successfully');
 
       const response: ZerofyApiResponse = {
         success: true,
@@ -248,7 +289,12 @@ router.post('/devices/:deviceId/control',
 
       return res.status(200).json(response);
     } catch (error) {
-      console.error('Zerofy battery control error:', error);
+      logger.error({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.zerofyUser?.userId,
+        deviceId: req.params.deviceId,
+        command: req.body 
+      }, 'Zerofy API: Battery control command failed');
 
       const response: ZerofyApiResponse = {
         success: false,
