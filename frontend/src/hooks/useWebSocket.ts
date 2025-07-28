@@ -3,10 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { SimulationUpdate } from '../types';
 
 
-// @ts-ignore
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-// Convert HTTP(S) URL to WebSocket URL
-const WS_URL = import.meta.env.VITE_WS_URL || API_URL.replace(/^http/, 'ws');
+const WS_URL = 'wss://emulator-sckainkjcq-ew.a.run.app'
 
 export interface DwellingUpdate {
   dwellingId: string;
