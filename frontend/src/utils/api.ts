@@ -13,7 +13,7 @@ import {
 } from '../types';
 
 // @ts-ignore
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
 
 class ApiClient {
   private client: AxiosInstance;
