@@ -9,7 +9,7 @@ RUN adduser -S nodejs -u 1001
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm i --only=production
 
 # Copy source code and build
 COPY . .
