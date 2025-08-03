@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Home, MapPin, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Home, MapPin, Clock, Wifi, WifiOff, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/api';
 import { Dwelling } from '../types';
 import CreateDwellingModal from '../components/CreateDwellingModal';
@@ -34,6 +34,22 @@ const Dashboard: React.FC = () => {
   const handleDwellingCreated = (newDwelling: Dwelling) => {
     setDwellings(prev => [...prev, newDwelling]);
     setShowCreateModal(false);
+  };
+
+  const handleDeleteDwelling = async (dwellingId: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation to dwelling details
+    e.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this dwelling? This action cannot be undone and will delete all devices.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteDwelling(dwellingId);
+      setDwellings(prev => prev.filter(d => d.dwellingId !== dwellingId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete dwelling');
+    }
   };
 
   if (loading) {
@@ -96,70 +112,79 @@ const Dashboard: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {dwellings.map((dwelling) => (
-            <Link
-              key={dwelling.dwellingId}
-              to={`/dwelling/${dwelling.dwellingId}`}
-              className="card"
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
+            <div key={dwelling.dwellingId} className="card">
               <div className="card-header">
-                <div className="flex items-center gap-2">
-                  <Home size={20} style={{ color: '#2563eb' }} />
-                  <h3 className="card-title">
-                    Dwelling {dwelling.dwellingId.slice(0, 8)}...
-                  </h3>
-                </div>
-              </div>
-
-              <div className="card-content">
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin size={16} style={{ color: '#6b7280' }} />
-                  <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                    {dwelling.location.lat.toFixed(4)}, {dwelling.location.lng.toFixed(4)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock size={16} style={{ color: '#6b7280' }} />
-                  <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                    {dwelling.timeZone}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div style={{ 
-                    display: 'inline-block',
-                    padding: '0.25rem 0.75rem',
-                    background: '#f0fdf4',
-                    color: '#166534',
-                    borderRadius: '4px',
-                    fontSize: '0.875rem',
-                    fontWeight: '500'
-                  }}>
-                    {dwellingUpdates.get(dwelling.dwellingId)?.deviceCount ?? dwelling.devices?.length ?? 0} devices
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <Home size={20} style={{ color: '#2563eb' }} />
+                    <h3 className="card-title">
+                      Dwelling {dwelling.dwellingId.slice(0, 8)}...
+                    </h3>
                   </div>
-                  
-                  {dwellingUpdates.has(dwelling.dwellingId) && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      fontSize: '0.75rem',
-                      color: '#10b981'
-                    }}>
-                      <div style={{
-                        width: '6px',
-                        height: '6px',
-                        backgroundColor: '#10b981',
-                        borderRadius: '50%',
-                        animation: 'pulse 2s infinite'
-                      }} />
-                      Active
-                    </div>
-                  )}
+                  <button
+                    onClick={(e) => handleDeleteDwelling(dwelling.dwellingId, e)}
+                    className="btn-icon btn-danger"
+                    title="Delete dwelling"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
-            </Link>
+
+              <Link
+                to={`/dwelling/${dwelling.dwellingId}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div className="card-content">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin size={16} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                      {dwelling.location.lat.toFixed(4)}, {dwelling.location.lng.toFixed(4)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock size={16} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                      {dwelling.timeZone}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div style={{ 
+                      display: 'inline-block',
+                      padding: '0.25rem 0.75rem',
+                      background: '#f0fdf4',
+                      color: '#166534',
+                      borderRadius: '4px',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}>
+                      {dwellingUpdates.get(dwelling.dwellingId)?.deviceCount ?? dwelling.devices?.length ?? 0} devices
+                    </div>
+                    
+                    {dwellingUpdates.has(dwelling.dwellingId) && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontSize: '0.75rem',
+                        color: '#10b981'
+                      }}>
+                        <div style={{
+                          width: '6px',
+                          height: '6px',
+                          backgroundColor: '#10b981',
+                          borderRadius: '50%',
+                          animation: 'pulse 2s infinite'
+                        }} />
+                        Active
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            </div>
           ))}
         </div>
       )}
