@@ -13,8 +13,7 @@ import {
   CreateDeviceForm 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:3001';
-// const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
+const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
 
 class ApiClient {
   private client: AxiosInstance;
