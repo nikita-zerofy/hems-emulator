@@ -132,6 +132,13 @@ export const BatteryControlCommandSchema = z.object({
 });
 
 export type BatteryControlCommand = z.infer<typeof BatteryControlCommandSchema>;
+
+// Appliance control
+export const ApplianceControlCommandSchema = z.object({
+  isOn: z.boolean()
+});
+export type ApplianceControlCommand = z.infer<typeof ApplianceControlCommandSchema>;
+
 export type ApplianceState = z.infer<typeof ApplianceStateSchema>;
 export type MeterState = z.infer<typeof MeterStateSchema>;
 

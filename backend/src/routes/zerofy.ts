@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
-import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema } from '../types/zerofy';
+import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema } from '../types/zerofy';
 import { z } from 'zod';
 import { createModuleLogger } from '../config/logger';
 
@@ -247,7 +247,7 @@ router.get('/devices/:deviceId/status',
 
 /**
  * POST /api/zerofy/devices/:deviceId/control
- * Control battery charge/discharge mode
+ * Control device (battery charge/discharge mode or appliance on/off)
  */
 router.post('/devices/:deviceId/control',
   authenticateZerofyToken,
@@ -258,49 +258,103 @@ router.post('/devices/:deviceId/control',
       }
 
       const { deviceId } = req.params;
-      const controlCommand = ZerofyBatteryControlSchema.parse(req.body);
 
       logger.info({ 
         userId: req.zerofyUser.userId,
         deviceId,
-        command: controlCommand 
-      }, 'Zerofy API: Battery control command received');
+        command: req.body 
+      }, 'Zerofy API: Device control command received');
 
-      await ZerofyService.controlBattery(deviceId, req.zerofyUser.userId, controlCommand);
+      // Get device to determine type
+      const device = await ZerofyService.getDevice(deviceId, req.zerofyUser.userId);
+      if (!device) {
+        const response: ZerofyApiResponse = {
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_FOUND',
+            message: 'Device not found or access denied'
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(404).json(response);
+      }
 
-      logger.info({ 
-        userId: req.zerofyUser.userId,
-        deviceId,
-        command: controlCommand 
-      }, 'Zerofy API: Battery control command executed successfully');
-
-      const response: ZerofyApiResponse = {
-        success: true,
-        data: {
-          message: 'Battery control command executed successfully',
+      if (device.deviceType === 'battery') {
+        const controlCommand = ZerofyBatteryControlSchema.parse(req.body);
+        await ZerofyService.controlBattery(deviceId, req.zerofyUser.userId, controlCommand);
+        
+        logger.info({ 
+          userId: req.zerofyUser.userId,
           deviceId,
-          command: controlCommand
-        },
-        meta: {
-          timestamp: new Date().toISOString(),
-          version: '1.0.0'
-        }
-      };
+          command: controlCommand 
+        }, 'Zerofy API: Battery control command executed successfully');
 
-      return res.status(200).json(response);
+        const response: ZerofyApiResponse = {
+          success: true,
+          data: {
+            message: 'Battery control command executed successfully',
+            deviceId,
+            command: controlCommand
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(200).json(response);
+      } else if (device.deviceType === 'appliance') {
+        const controlCommand = ZerofyApplianceControlSchema.parse(req.body);
+        await ZerofyService.controlAppliance(deviceId, req.zerofyUser.userId, controlCommand);
+        
+        logger.info({ 
+          userId: req.zerofyUser.userId,
+          deviceId,
+          command: controlCommand 
+        }, 'Zerofy API: Appliance control command executed successfully');
+
+        const response: ZerofyApiResponse = {
+          success: true,
+          data: {
+            message: 'Appliance control command executed successfully',
+            deviceId,
+            command: controlCommand
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(200).json(response);
+      } else {
+        const response: ZerofyApiResponse = {
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_CONTROLLABLE',
+            message: `Device type '${device.deviceType}' is not controllable`
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(400).json(response);
+      }
     } catch (error) {
       logger.error({ 
         error: error instanceof Error ? error.message : 'Unknown error',
         userId: req.zerofyUser?.userId,
         deviceId: req.params.deviceId,
         command: req.body 
-      }, 'Zerofy API: Battery control command failed');
+      }, 'Zerofy API: Device control command failed');
 
       const response: ZerofyApiResponse = {
         success: false,
         error: {
           code: 'CONTROL_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to control battery'
+          message: error instanceof Error ? error.message : 'Failed to control device'
         },
         meta: {
           timestamp: new Date().toISOString(),

@@ -205,6 +205,7 @@ Authorization: Bearer [access_token]
     "status": "online",
     "power": 3450,
     "energy": 18.2,
+    "batteryLevel": 0,
     "lastUpdate": "2024-01-15T10:30:00Z",
     "metadata": {
       "deviceType": "solarInverter",
@@ -218,15 +219,57 @@ Authorization: Bearer [access_token]
 }
 ```
 
-### 5. Battery Control
+**Appliance Response (includes `isOn` field):**
+```json
+{
+  "success": true,
+  "data": {
+    "deviceId": "dev_987654321",
+    "deviceType": "appliance",
+    "status": "online",
+    "power": 1200,
+    "energy": 4.8,
+    "batteryLevel": 0,
+    "isOn": true,
+    "lastUpdate": "2024-01-15T10:30:00Z",
+    "metadata": {
+      "deviceType": "appliance",
+      "simulated": true
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+### 5. Device Control
 
 **Endpoint:** `POST /api/zerofy/devices/{deviceId}/control`
 
-**Description:** Control battery charge/discharge mode for battery devices.
+**Description:** Control device behavior. Supports battery charge/discharge modes and appliance on/off states.
 
 **Required Scope:** `device:control` (automatically granted with device:status)
 
-**Request:**
+**Command Formats:**
+
+**Battery Control:**
+```json
+{
+  "mode": "force_charge|force_discharge|auto|idle",
+  "powerW": 2000  // Required for force_charge/force_discharge
+}
+```
+
+**Appliance Control:**
+```json
+{
+  "isOn": true  // true to turn on, false to turn off
+}
+```
+
+**Example Request:**
 ```http
 POST /api/zerofy/devices/dev_123456789/control
 Authorization: Bearer [access_token]
@@ -245,6 +288,8 @@ Content-Type: application/json
 - `idle`: Battery remains idle (no charge/discharge)
 
 **Response:**
+
+**Battery Control Response:**
 ```json
 {
   "success": true,
@@ -254,6 +299,24 @@ Content-Type: application/json
     "command": {
       "mode": "force_charge",
       "powerW": 2000
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+**Appliance Control Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Appliance control command executed successfully",
+    "deviceId": "dev_987654321",
+    "command": {
+      "isOn": true
     }
   },
   "meta": {
@@ -285,11 +348,13 @@ Content-Type: application/json
 
 ### Device Status Values
 
-| Field | Description | Units |
-|-------|-------------|-------|
-| `power` | Current power output/consumption | Watts (W) |
-| `energy` | Energy generated/consumed today | Kilowatt-hours (kWh) |
-| `status` | Device connectivity status | `online`, `offline`, `error` |
+| Field | Description | Units | Applicable To |
+|-------|-------------|-------|---------------|
+| `power` | Current power output/consumption | Watts (W) | All devices |
+| `energy` | Energy generated/consumed today | Kilowatt-hours (kWh) | All devices |
+| `batteryLevel` | Battery charge level | Percentage (%) | Battery devices |
+| `isOn` | On/off state | Boolean | Appliance devices |
+| `status` | Device connectivity status | `online`, `offline`, `error` | All devices |
 
 ## Error Handling
 
@@ -412,6 +477,26 @@ curl -X POST http://localhost:3001/api/zerofy/devices/dev_123456789/control \
   -H "Content-Type: application/json" \
   -d '{
     "mode": "auto"
+  }'
+```
+
+### 5. Control Appliance
+
+```bash
+# Turn appliance ON
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_987654321/control \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isOn": true
+  }'
+
+# Turn appliance OFF
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_987654321/control \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isOn": false
   }'
 ```
 

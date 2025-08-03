@@ -11,6 +11,7 @@ import {
   ZerofyDeviceDetails,
   ZerofyDeviceStatus,
   ZerofyBatteryControl,
+  ZerofyApplianceControl,
   DEVICE_TYPE_MAPPING,
   DEVICE_CAPABILITIES
 } from '../types/zerofy';
@@ -21,7 +22,8 @@ import {
   BatteryState,
   ApplianceState,
   MeterState,
-  BatteryControlCommand
+  BatteryControlCommand,
+  ApplianceControlCommand
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -198,6 +200,7 @@ export class ZerofyService {
     let power = 0;
     let energy = 0;
     let batteryLevel = 0;
+    let isOn: boolean | undefined = undefined;
 
     // Extract power and energy based on device type
     switch (device.deviceType) {
@@ -218,6 +221,7 @@ export class ZerofyService {
         const state = device.state as ApplianceState;
         power = state.powerW;
         energy = state.energyTodayKwh;
+        isOn = state.isOn; // Include on/off state for appliances
         break;
       }
       case DeviceType.Meter: {
@@ -235,6 +239,7 @@ export class ZerofyService {
       power: Math.round(power),
       energy: Math.round(energy * 100) / 100, // Round to 2 decimal places
       batteryLevel: Math.round(batteryLevel),
+      isOn,
       lastUpdate: device.updatedAt.toString(),
       metadata: {
         deviceType: device.deviceType,
@@ -271,6 +276,35 @@ export class ZerofyService {
 
     // Use existing device service method
     await DeviceService.controlBattery(deviceId, command);
+  }
+
+  /**
+   * Control appliance on/off state for Zerofy app
+   */
+  static async controlAppliance(deviceId: string, userId: string, control: ZerofyApplianceControl): Promise<void> {
+    // Verify user has access to this device
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    // Verify device is an appliance
+    if (device.deviceType !== DeviceType.Appliance) {
+      throw new Error('Device is not an appliance');
+    }
+
+    // Convert Zerofy control to internal command
+    const command: ApplianceControlCommand = {
+      isOn: control.isOn
+    };
+
+    // Use existing device service method
+    await DeviceService.controlAppliance(deviceId, command);
   }
 
   /**

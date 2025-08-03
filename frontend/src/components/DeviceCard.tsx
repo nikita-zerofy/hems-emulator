@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, Sun, Battery, Zap, Home } from 'lucide-react';
 import { format } from 'date-fns';
-import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState, BatteryControlCommand, BatteryControlMode } from '../types';
+import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState, BatteryControlCommand, BatteryControlMode, ApplianceControlCommand, ApplianceConfig } from '../types';
 import { apiClient } from '../utils/api';
 
 interface DeviceCardProps {
@@ -143,6 +143,19 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     }
   };
 
+  const handleApplianceControl = async (isOn: boolean) => {
+    try {
+      setControlLoading(true);
+      const command: ApplianceControlCommand = { isOn };
+      await apiClient.controlAppliance(device.deviceId, command);
+      alert(`Appliance turned ${isOn ? 'ON' : 'OFF'}`);
+    } catch (err) {
+      alert('Failed to control appliance: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
   const isOnline = device.state && 'isOnline' in device.state ? device.state.isOnline : true;
 
   return (
@@ -246,6 +259,75 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
               Force Discharge
             </button>
           </div>
+          {controlLoading && (
+            <div style={{ 
+              textAlign: 'center', 
+              marginTop: '0.5rem',
+              fontSize: '0.75rem',
+              color: '#6b7280'
+            }}>
+              Sending command...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Appliance Controls */}
+      {device.deviceType === DeviceType.Appliance && (
+        <div style={{ 
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #f3f4f6'
+        }}>
+          <div style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: '500', 
+            marginBottom: '0.5rem',
+            color: '#374151'
+          }}>
+            Appliance Control
+          </div>
+          {(() => {
+            const config = device.config as ApplianceConfig;
+            const state = device.state as ApplianceState;
+            
+            if (!config.isControllable) {
+              return (
+                <div style={{ 
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  fontStyle: 'italic'
+                }}>
+                  This appliance is not controllable
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={() => handleApplianceControl(true)}
+                  disabled={controlLoading || state.isOn}
+                  className={`btn btn-sm ${state.isOn ? 'btn-success' : 'btn-primary'}`}
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  {state.isOn ? '✓ ON' : 'Turn ON'}
+                </button>
+                <button
+                  onClick={() => handleApplianceControl(false)}
+                  disabled={controlLoading || !state.isOn}
+                  className={`btn btn-sm ${!state.isOn ? 'btn-secondary' : 'btn-danger'}`}
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  {!state.isOn ? '✓ OFF' : 'Turn OFF'}
+                </button>
+              </div>
+            );
+          })()}
           {controlLoading && (
             <div style={{ 
               textAlign: 'center', 

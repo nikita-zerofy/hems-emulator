@@ -9,6 +9,7 @@ import {
   ApplianceState,
   MeterState,
   BatteryControlCommand,
+  ApplianceControlCommand,
   SolarInverterConfigSchema,
   SolarInverterStateSchema,
   BatteryConfigSchema,
@@ -351,6 +352,49 @@ export class DeviceService {
       ...currentState,
       controlMode: command.mode,
       forcePowerW: command.powerW
+    };
+
+    // Update database
+    await query(
+      'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
+      [JSON.stringify(updatedState), deviceId]
+    );
+  }
+
+  /**
+   * Control appliance on/off state
+   */
+  static async controlAppliance(deviceId: string, command: ApplianceControlCommand): Promise<void> {
+    // Validate device exists and is an appliance
+    const deviceResult = await query(
+      'SELECT device_id, device_type, state, config FROM devices WHERE device_id = $1',
+      [deviceId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      throw new Error('Device not found');
+    }
+
+    const device = deviceResult.rows[0];
+    if (device.device_type !== 'appliance') {
+      throw new Error('Device is not an appliance');
+    }
+
+    // Parse current state and config
+    const currentState = ApplianceStateSchema.parse(device.state);
+    const config = ApplianceConfigSchema.parse(device.config);
+
+    // Check if appliance is controllable
+    if (!config.isControllable) {
+      throw new Error('Appliance is not controllable');
+    }
+
+    // Update appliance state
+    const updatedState: ApplianceState = {
+      ...currentState,
+      isOn: command.isOn,
+      // Update power based on on/off state
+      powerW: command.isOn ? config.powerW : 0
     };
 
     // Update database

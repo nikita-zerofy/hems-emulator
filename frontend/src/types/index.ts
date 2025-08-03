@@ -156,3 +156,7 @@ export interface BatteryControlCommand {
   mode: BatteryControlMode;
   powerW?: number;
 }
+
+export interface ApplianceControlCommand {
+  isOn: boolean;
+}

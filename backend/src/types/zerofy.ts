@@ -17,6 +17,7 @@ export const ZerofyDeviceStatusSchema = z.object({
   power: z.number(), // Current power in watts
   energy: z.number(), // Energy today in kWh
   batteryLevel: z.number(),
+  isOn: z.boolean().optional(), // On/off state for appliances
   lastUpdate: z.string().datetime(),
   metadata: z.record(z.unknown()).optional()
 });
@@ -117,4 +118,11 @@ export const ZerofyBatteryControlSchema = z.object({
   powerW: z.number().optional()
 });
 
-export type ZerofyBatteryControl = z.infer<typeof ZerofyBatteryControlSchema>; 
+export type ZerofyBatteryControl = z.infer<typeof ZerofyBatteryControlSchema>;
+
+// Zerofy Appliance Control
+export const ZerofyApplianceControlSchema = z.object({
+  isOn: z.boolean()
+});
+
+export type ZerofyApplianceControl = z.infer<typeof ZerofyApplianceControlSchema>; 

@@ -3,7 +3,8 @@ import { io, Socket } from 'socket.io-client';
 import { SimulationUpdate } from '../types';
 
 
-const WS_URL = 'wss://emulator-sckainkjcq-ew.a.run.app'
+// const WS_URL = 'wss://emulator-sckainkjcq-ew.a.run.app'
+const WS_URL = 'ws://localhost:3001'
 
 export interface DwellingUpdate {
   dwellingId: string;

@@ -2,7 +2,7 @@ import {Router, Request, Response} from 'express';
 import {DeviceService} from '../services/deviceService';
 import {DwellingService} from '../services/dwellingService';
 import {authenticateToken} from '../middleware/auth';
-import {ApiResponse, DeviceType, BatteryControlCommandSchema} from '../types';
+import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema} from '../types';
 import {z} from 'zod';
 
 const router = Router();
@@ -293,27 +293,51 @@ router.get('/dwellings/:dwellingId/devices', async (req: Request, res: Response)
 
 /**
  * POST /devices/:deviceId/control
- * Control battery charge/discharge mode
+ * Control device (battery charge/discharge mode or appliance on/off)
  */
 router.post('/devices/:deviceId/control', authenticateToken, async (req: Request, res: Response) => {
   try {
     const deviceId = req.params.deviceId;
-    const command = BatteryControlCommandSchema.parse(req.body);
 
-    await DeviceService.controlBattery(deviceId, command);
+    // Get device to determine type
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        error: 'Device not found'
+      } satisfies ApiResponse);
+    }
 
-    const response: ApiResponse = {
-      success: true,
-      message: 'Battery control command sent successfully'
-    };
-
-    return res.status(200).json(response);
+    if (device.deviceType === 'battery') {
+      const command = BatteryControlCommandSchema.parse(req.body);
+      await DeviceService.controlBattery(deviceId, command);
+      
+      const response: ApiResponse = {
+        success: true,
+        message: 'Battery control command sent successfully'
+      };
+      return res.status(200).json(response);
+    } else if (device.deviceType === 'appliance') {
+      const command = ApplianceControlCommandSchema.parse(req.body);
+      await DeviceService.controlAppliance(deviceId, command);
+      
+      const response: ApiResponse = {
+        success: true,
+        message: 'Appliance control command sent successfully'
+      };
+      return res.status(200).json(response);
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: `Device type '${device.deviceType}' is not controllable`
+      } satisfies ApiResponse);
+    }
   } catch (error) {
-    console.error('Battery control error:', error);
+    console.error('Device control error:', error);
 
     const response: ApiResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to control battery'
+      error: error instanceof Error ? error.message : 'Failed to control device'
     };
 
     return res.status(400).json(response);

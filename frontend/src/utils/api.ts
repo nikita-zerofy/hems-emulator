@@ -9,11 +9,12 @@ import {
   RegisterForm, 
   CreateDwellingForm,
   BatteryControlCommand,
+  ApplianceControlCommand,
   CreateDeviceForm 
 } from '../types';
 
-// @ts-ignore
-const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
+const API_BASE_URL = 'http://localhost:3001';
+// const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -179,6 +180,12 @@ class ApiClient {
 
   // Battery Control
   async controlBattery(deviceId: string, command: BatteryControlCommand): Promise<ApiResponse> {
+    const response = await this.client.post(`/devices/${deviceId}/control`, command);
+    return response.data;
+  }
+
+  // Appliance Control
+  async controlAppliance(deviceId: string, command: ApplianceControlCommand): Promise<ApiResponse> {
     const response = await this.client.post(`/devices/${deviceId}/control`, command);
     return response.data;
   }

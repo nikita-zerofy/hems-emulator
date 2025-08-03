@@ -11,6 +11,7 @@ import {
   SolarInverterState,
   BatteryConfig,
   BatteryState,
+  ApplianceConfig,
   ApplianceState,
   MeterState,
   SimulationUpdate,
@@ -456,20 +457,30 @@ export class SimulationEngine {
       updates.push({deviceId: meter.deviceId, state: newState});
     }
 
-    // Update appliances (simulate some random on/off behavior for demo)
+    // Update appliances
     for (const appliance of devicesByType.appliance) {
       const currentState = appliance.state as ApplianceState;
+      const applianceConfig = appliance.config as ApplianceConfig;
 
-      // Random chance to change state (for demonstration)
-      const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
-      const newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      // For controllable appliances, don't simulate random behavior - respect manual control
+      // For non-controllable appliances, simulate some random on/off behavior for demo
+      let newIsOn = currentState.isOn;
+      
+      if (!applianceConfig.isControllable) {
+        // Random chance to change state for non-controllable appliances
+        const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
+        newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      }
+
+      // Update power based on on/off state and configured power
+      const actualPowerW = newIsOn ? applianceConfig.powerW : 0;
 
       const newState: ApplianceState = {
         ...currentState,
         isOn: newIsOn,
-        powerW: newIsOn ? currentState.powerW : 0,
+        powerW: actualPowerW,
         energyTodayKwh: newIsOn
-          ? this.updateDailyEnergy(currentState.energyTodayKwh, currentState.powerW)
+          ? this.updateDailyEnergy(currentState.energyTodayKwh, actualPowerW)
           : currentState.energyTodayKwh
       };
 
