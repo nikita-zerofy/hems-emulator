@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { WeatherData, Location } from '../types';
-import { createModuleLogger } from '../config/logger';
+import { WeatherData, Location } from '../types/index.ts';
+import { createModuleLogger } from '../config/logger.ts';
 
 const OPEN_METEO_API_URL = 'https://api.open-meteo.com/v1/forecast';
 

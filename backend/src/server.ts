@@ -1,21 +1,23 @@
+// @ts-types="npm:@types/express@4.17.21"
 import express from 'express';
+// @ts-types="npm:@types/cors@2.8.17"
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import {Server} from 'socket.io';
 import {createServer} from 'http';
-import {logger, requestLogger} from './config/logger';
+import {logger, requestLogger} from './config/logger.ts';
 
 // Load environment variables
 dotenv.config();
 
 // Import services and routes
-import {testConnection} from './config/database';
-import {SimulationEngine} from './services/simulationEngine';
-import authRoutes from './routes/auth';
-import dwellingRoutes from './routes/dwellings';
-import deviceRoutes from './routes/devices';
-import zerofyRoutes from './routes/zerofy';
+import {testConnection} from './config/database.ts';
+import {SimulationEngine} from './services/simulationEngine.ts';
+import authRoutes from './routes/auth.ts';
+import dwellingRoutes from './routes/dwellings.ts';
+import deviceRoutes from './routes/devices.ts';
+import zerofyRoutes from './routes/zerofy.ts';
 
 // Initialize Express app
 const app = express();

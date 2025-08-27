@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
-import { apiClient, authUtils } from '../utils/api';
-import { LoginForm } from '../types';
+import { LoginForm } from '../types/index.ts';
+import { apiClient, authUtils } from '../utils/api.ts';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();

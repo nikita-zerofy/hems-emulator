@@ -1,9 +1,11 @@
+// @ts-types="npm:@types/jsonwebtoken@9.0.5"
 import jwt from 'jsonwebtoken';
+// @ts-types="npm:@types/bcryptjs@2.4.6"
 import bcrypt from 'bcryptjs';
-import {query} from '../config/database';
-import {DeviceService} from './deviceService';
-import {DwellingService} from './dwellingService';
-import { createModuleLogger } from '../config/logger';
+import {query} from '../config/database.ts';
+import {DeviceService} from './deviceService.ts';
+import {DwellingService} from './dwellingService.ts';
+import { createModuleLogger } from '../config/logger.ts';
 import {
   ZerofyAuth,
   ZerofyAuthResponse,
@@ -14,7 +16,7 @@ import {
   ZerofyApplianceControl,
   DEVICE_TYPE_MAPPING,
   DEVICE_CAPABILITIES
-} from '../types/zerofy';
+} from '../types/zerofy.ts';
 import {
   Device,
   DeviceType,
@@ -24,7 +26,7 @@ import {
   MeterState,
   BatteryControlCommand,
   ApplianceControlCommand
-} from '../types';
+} from '../types/index.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
 // const ZEROFY_TOKEN_EXPIRES_IN = '24h';

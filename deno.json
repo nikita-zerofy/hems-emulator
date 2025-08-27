@@ -1,0 +1,15 @@
+{
+  "name": "@hems/monorepo",
+  "version": "1.0.0",
+  "tasks": {
+    "dev": "deno run --allow-run --allow-read concurrently.ts",
+    "dev:backend": "cd backend && deno task dev", 
+    "dev:frontend": "cd frontend && deno task dev",
+    "build": "cd backend && deno task build && cd ../frontend && deno task build",
+    "start": "cd backend && deno task start",
+    "test": "cd backend && deno task test && cd ../frontend && deno task type-check"
+  },
+  "imports": {
+    "concurrently": "npm:concurrently@^8.2.2"
+  }
+}

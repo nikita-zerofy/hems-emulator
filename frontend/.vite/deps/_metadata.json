@@ -1,0 +1,79 @@
+{
+  "hash": "db22d8aa",
+  "configHash": "ce0dc3d4",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "45d8a7b7",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/.deno/react@18.3.1/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "59cbf25c",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../node_modules/.deno/react-dom@18.3.1/node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "bd5ddc67",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/.deno/react@18.3.1/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "b96d85d9",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../node_modules/.deno/react@18.3.1/node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "77bb53e1",
+      "needsInterop": true
+    },
+    "axios": {
+      "src": "../../node_modules/.deno/axios@1.11.0/node_modules/axios/index.js",
+      "file": "axios.js",
+      "fileHash": "e20390f0",
+      "needsInterop": false
+    },
+    "date-fns": {
+      "src": "../../node_modules/.deno/date-fns@2.30.0/node_modules/date-fns/esm/index.js",
+      "file": "date-fns.js",
+      "fileHash": "9783268e",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../node_modules/.deno/lucide-react@0.294.0/node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "a7292c18",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/.deno/react-dom@18.3.1/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "2b9a1aa3",
+      "needsInterop": true
+    },
+    "react-router-dom": {
+      "src": "../../node_modules/.deno/react-router-dom@6.30.1/node_modules/react-router-dom/dist/index.js",
+      "file": "react-router-dom.js",
+      "fileHash": "de6a917e",
+      "needsInterop": false
+    },
+    "socket.io-client": {
+      "src": "../../node_modules/.deno/socket.io-client@4.8.1/node_modules/socket.io-client/build/esm/index.js",
+      "file": "socket__io-client.js",
+      "fileHash": "9f171968",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-NQAYZCVY": {
+      "file": "chunk-NQAYZCVY.js"
+    },
+    "chunk-D46NJTKN": {
+      "file": "chunk-D46NJTKN.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
+    }
+  }
+}

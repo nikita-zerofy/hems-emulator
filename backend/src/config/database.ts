@@ -1,3 +1,4 @@
+// @ts-types="npm:@types/pg@8.10.9"
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
@@ -52,6 +53,13 @@ export const testConnection = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// Self-test when run directly
+if (import.meta.main) {
+  console.log('Testing database connection...');
+  await testConnection();
+  await pool.end();
+}
 
 // Graceful shutdown
 process.on('SIGINT', async () => {

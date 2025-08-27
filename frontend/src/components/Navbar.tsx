@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
-import { authUtils } from '../utils/api';
+import { authUtils } from '../utils/api.ts';
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();

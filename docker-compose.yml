@@ -33,11 +33,10 @@ services:
       PORT: 3001
     volumes:
       - ./backend:/app
-      - /app/node_modules
     depends_on:
       database:
         condition: service_healthy
-    command: npm run dev
+    command: deno task dev
 
   frontend:
     build:
@@ -51,10 +50,9 @@ services:
       VITE_WS_URL: ws://localhost:3001
     volumes:
       - ./frontend:/app
-      - /app/node_modules
     depends_on:
       - backend
-    command: npm run dev
+    command: deno task dev
 
 volumes:
   postgres_data: 

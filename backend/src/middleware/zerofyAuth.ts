@@ -1,5 +1,6 @@
+// @ts-types="npm:@types/express@4.17.21"
 import { Request, Response, NextFunction } from 'express';
-import { ZerofyService } from '../services/zerofyService';
+import { ZerofyService } from '../services/zerofyService.ts';
 
 // Extend Express Request type to include Zerofy user info
 declare global {

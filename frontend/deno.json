@@ -1,0 +1,63 @@
+{
+  "name": "@hems/frontend", 
+  "version": "1.0.0",
+  "exports": "./src/main.tsx",
+  "nodeModulesDir": "auto",
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys --allow-ffi npm:vite",
+    "build": "deno run --allow-net --allow-read --allow-write --allow-env --allow-run --allow-sys --allow-ffi npm:vite build",
+    "preview": "deno run --allow-net --allow-read --allow-write --allow-env --allow-run --allow-ffi npm:vite preview",
+    "lint": "deno run --allow-net --allow-read --allow-run npm:eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "deno run --allow-net --allow-read --allow-run npm:tsc --noEmit"
+  },
+  "imports": {
+    "react": "npm:react@^18.2.0",
+    "react/jsx-runtime": "npm:react@^18.2.0/jsx-runtime",
+    "react/jsx-dev-runtime": "npm:react@^18.2.0/jsx-dev-runtime",
+    "react-dom": "npm:react-dom@^18.2.0",
+    "react-dom/client": "npm:react-dom@^18.2.0/client",
+    "react-router-dom": "npm:react-router-dom@^6.8.1",
+    "axios": "npm:axios@^1.6.2",
+    "date-fns": "npm:date-fns@^2.30.0",
+    "lucide-react": "npm:lucide-react@^0.294.0",
+    "socket.io-client": "npm:socket.io-client@^4.7.4",
+    "zod": "npm:zod@^4.0.10",
+    "@types/react": "npm:@types/react@^18.2.43",
+    "@types/react-dom": "npm:@types/react-dom@^18.2.17",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^4.2.1",
+    "vite": "npm:vite@^5.0.8",
+    "typescript": "npm:typescript@^5.2.2",
+    "eslint": "npm:eslint@^8.55.0",
+    "@typescript-eslint/eslint-plugin": "npm:@typescript-eslint/eslint-plugin@^6.14.0",
+    "@typescript-eslint/parser": "npm:@typescript-eslint/parser@^6.14.0",
+    "eslint-plugin-react-hooks": "npm:eslint-plugin-react-hooks@^4.6.0",
+    "eslint-plugin-react-refresh": "npm:eslint-plugin-react-refresh@^0.4.5"
+  },
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}

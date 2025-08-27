@@ -1,8 +1,9 @@
+// @ts-types="npm:@types/express@4.17.21"
 import { Router, Request, Response } from 'express';
-import { AuthService } from '../services/authService';
-import { ApiResponse } from '../types';
+import { AuthService } from '../services/authService.ts';
+import { ApiResponse } from '../types/index.ts';
 import { z } from 'zod';
-import { createModuleLogger } from '../config/logger';
+import { createModuleLogger } from '../config/logger.ts';
 
 const router = Router();
 const logger = createModuleLogger('auth');

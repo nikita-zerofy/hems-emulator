@@ -1,9 +1,10 @@
+// @ts-types="npm:@types/express@4.17.21"
 import { Router, Request, Response } from 'express';
-import { ZerofyService } from '../services/zerofyService';
-import { authenticateZerofyToken } from '../middleware/zerofyAuth';
-import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema } from '../types/zerofy';
+import { ZerofyService } from '../services/zerofyService.ts';
+import { authenticateZerofyToken } from '../middleware/zerofyAuth.ts';
+import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema } from '../types/zerofy.ts';
 import { z } from 'zod';
-import { createModuleLogger } from '../config/logger';
+import { createModuleLogger } from '../config/logger.ts';
 
 const router = Router();
 const logger = createModuleLogger('zerofy-api');

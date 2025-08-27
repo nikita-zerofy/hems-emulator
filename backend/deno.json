@@ -1,0 +1,55 @@
+{
+  "name": "@hems/backend",
+  "version": "1.0.0",
+  "exports": "./src/server.ts",
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-env --allow-run --allow-sys --watch src/server.ts",
+    "build": "deno compile --allow-net --allow-read --allow-env --allow-run --allow-sys --output dist/server src/server.ts",
+    "start": "deno run --allow-net --allow-read --allow-env --allow-run --allow-sys src/server.ts",
+    "test": "deno test --allow-net --allow-read --allow-env",
+    "lint": "deno lint src/",
+    "fmt": "deno fmt src/",
+    "migrate": "deno run --allow-net --allow-read --allow-env src/database/migrate.ts"
+  },
+  "imports": {
+    "express": "npm:express@^4.18.2",
+    "@types/express": "npm:@types/express@^4.17.21",
+    "cors": "npm:cors@^2.8.5",
+    "@types/cors": "npm:@types/cors@^2.8.17",
+    "helmet": "npm:helmet@^7.1.0",
+    "dotenv": "npm:dotenv@^16.3.1",
+    "socket.io": "npm:socket.io@^4.7.4",
+    "http": "node:http",
+    "pg": "npm:pg@^8.11.3",
+    "@types/pg": "npm:@types/pg@^8.10.9",
+    "bcryptjs": "npm:bcryptjs@^2.4.3",
+    "@types/bcryptjs": "npm:@types/bcryptjs@^2.4.6",
+    "jsonwebtoken": "npm:jsonwebtoken@^9.0.2",
+    "@types/jsonwebtoken": "npm:@types/jsonwebtoken@^9.0.5",
+    "luxon": "npm:luxon@^3.4.4",
+    "@types/luxon": "npm:@types/luxon@^3.3.7",
+    "pino": "npm:pino@^9.7.0",
+    "pino-pretty": "npm:pino-pretty@^13.0.0",
+    "uuid": "npm:uuid@^9.0.1",
+    "@types/uuid": "npm:@types/uuid@^9.0.7",
+    "zod": "npm:zod@^3.22.4",
+    "axios": "npm:axios@^1.6.2"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "ES2022"],
+    "strict": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": true,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}
