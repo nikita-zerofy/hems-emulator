@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Home, MapPin, Clock, Wifi, WifiOff, Trash2 } from 'lucide-react';
-import { apiClient } from '../utils/api';
-import { Dwelling } from '../types';
-import CreateDwellingModal from '../components/CreateDwellingModal';
-import { useDashboardWebSocket } from '../hooks/useWebSocket';
+import { apiClient } from '../utils/api.ts';
+import { useDashboardWebSocket } from '../hooks/useWebSocket.ts';
+import { Dwelling } from '../types/index.ts';
+import CreateDwellingModal from '../components/CreateDwellingModal.tsx';
 
 const Dashboard: React.FC = () => {
   const [dwellings, setDwellings] = useState<Dwelling[]>([]);

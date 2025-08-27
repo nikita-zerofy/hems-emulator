@@ -1,8 +1,9 @@
+// // @ts-types="npm:@types/luxon@3.3.7"
 // // import { DateTime } from 'luxon';
-import {query} from '../config/database';
-import {DeviceService} from './deviceService';
-import {WeatherService} from './weatherService';
-import { createModuleLogger } from '../config/logger';
+import {query} from '../config/database.ts';
+import {DeviceService} from './deviceService.ts';
+import {WeatherService} from './weatherService.ts';
+import { createModuleLogger } from '../config/logger.ts';
 import {
   Device,
   DeviceType,
@@ -16,12 +17,13 @@ import {
   MeterState,
   SimulationUpdate,
   Dwelling
-} from '../types';
+} from '../types/index.ts';
+import {io} from "../server.ts";
 
 export class SimulationEngine {
   private static instance: SimulationEngine;
   private isRunning = false;
-  private intervalId?: NodeJS.Timeout;
+  private intervalId?: number;
   private readonly simulationIntervalMs: number;
   private logger = createModuleLogger('simulation');
 
@@ -564,9 +566,6 @@ export class SimulationEngine {
    */
   private broadcastUpdates(updates: SimulationUpdate[]): void {
     try {
-      // Import io dynamically to avoid circular dependency
-      const {io} = require('../server');
-
       for (const update of updates) {
         // Broadcast to dwelling-specific room
         io.to(`dwelling-${update.dwellingId}`).emit('simulation-update', update);

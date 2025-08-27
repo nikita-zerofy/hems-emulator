@@ -1,14 +1,16 @@
 # Build stage
-FROM node:18-alpine as build
+FROM denoland/deno:2.4.5 as build
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-RUN npm i
-
-# Copy source code
-COPY . .
+# Copy Deno configuration and source
+COPY deno.json ./
+COPY vite.config.ts ./
+COPY tsconfig.json ./
+COPY tsconfig.node.json ./
+COPY index.html ./
+COPY src/ ./src/
+COPY public/ ./public/
 
 # Build arguments for environment variables
 ARG VITE_API_URL
@@ -18,8 +20,9 @@ ARG VITE_WS_URL
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_WS_URL=${VITE_WS_URL}
 
-# Build the application
-RUN npm run build
+# Cache dependencies and build
+RUN deno cache --lock-write src/main.tsx
+RUN deno task build
 
 # Production stage
 FROM nginx:alpine

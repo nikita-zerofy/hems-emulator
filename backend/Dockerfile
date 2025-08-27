@@ -1,19 +1,19 @@
-FROM node:18-alpine
+FROM denoland/deno:2.4.5
 
 # Create app directory and user
 WORKDIR /app
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs
+RUN useradd -r -u 1001 -g nodejs nodejs
 
-# Copy package files
-COPY package*.json ./
+# Copy Deno configuration
+COPY deno.json ./
 
-# Install dependencies
-RUN npm i
+# Cache dependencies
+COPY src/ ./src/
+RUN deno cache --lock-write src/server.ts
 
-# Copy source code and build
-COPY . .
-RUN npm run build
+# Build the application
+RUN deno task build
 
 # Change ownership of app directory
 RUN chown -R nodejs:nodejs /app
@@ -24,7 +24,7 @@ EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8080) + '/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+  CMD deno run --allow-net -e "fetch('http://localhost:' + (Deno.env.get('PORT') || '8080') + '/health').then(r => Deno.exit(r.ok ? 0 : 1))"
 
 # Start the application
-CMD ["npm", "start"] 
+CMD ["deno", "task", "start"] 

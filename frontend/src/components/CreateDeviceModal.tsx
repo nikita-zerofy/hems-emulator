@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
-import { apiClient } from '../utils/api';
-import { Device, DeviceType, CreateDeviceForm } from '../types';
+import { apiClient } from '../utils/api.ts';
+import { Device, DeviceType, CreateDeviceForm } from '../types/index.ts';
 
 interface CreateDeviceModalProps {
   dwellingId: string;

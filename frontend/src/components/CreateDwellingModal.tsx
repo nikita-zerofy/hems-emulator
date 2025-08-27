@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Home } from 'lucide-react';
-import { apiClient } from '../utils/api';
-import { Dwelling, CreateDwellingForm } from '../types';
+import { apiClient } from '../utils/api.ts';
+import { Dwelling, CreateDwellingForm } from '../types/index.ts';
 
 interface CreateDwellingModalProps {
   onClose: () => void;

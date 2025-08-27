@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, MapPin, Clock, Wifi, WifiOff } from 'lucide-react';
-import { apiClient } from '../utils/api';
-import { Dwelling, Device } from '../types';
-import DeviceCard from '../components/DeviceCard';
-import CreateDeviceModal from '../components/CreateDeviceModal';
-import { useDwellingWebSocket } from '../hooks/useWebSocket';
+import { Device, Dwelling } from '../types/index.ts';
+import { apiClient } from '../utils/api.ts';
+import DeviceCard from '../components/DeviceCard.tsx';
+import CreateDeviceModal from '../components/CreateDeviceModal.tsx';
+import { useDwellingWebSocket } from '../hooks/useWebSocket.ts';
 
 const DwellingDetails: React.FC = () => {
   const { dwellingId } = useParams<{ dwellingId: string }>();

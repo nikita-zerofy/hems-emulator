@@ -1,8 +1,11 @@
+// @ts-types="npm:@types/bcryptjs@2.4.6"
 import bcrypt from 'bcryptjs';
+// @ts-types="npm:@types/jsonwebtoken@9.0.5"
 import jwt from 'jsonwebtoken';
+// @ts-types="npm:@types/uuid@9.0.7"
 import {v4 as uuidv4} from 'uuid';
-import {query} from '../config/database';
-import {UserWithoutPassword, JwtPayload, UserSchema} from '../types';
+import {query} from '../config/database.ts';
+import {UserWithoutPassword, JwtPayload, UserSchema} from '../types/index.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
 // const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN ?? '7d';

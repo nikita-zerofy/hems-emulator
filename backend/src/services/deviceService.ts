@@ -1,5 +1,6 @@
+// @ts-types="npm:@types/uuid@9.0.7"
 import {v4 as uuidv4} from 'uuid';
-import {query} from '../config/database';
+import {query} from '../config/database.ts';
 import {
   Device,
   DeviceType,
@@ -18,7 +19,7 @@ import {
   ApplianceStateSchema,
   MeterConfigSchema,
   MeterStateSchema
-} from '../types';
+} from '../types/index.ts';
 
 export class DeviceService {
   /**

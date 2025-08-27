@@ -1,8 +1,19 @@
 import React, { useState } from 'react';
-import { Trash2, Sun, Battery, Zap, Home } from 'lucide-react';
+import { Battery, Home, Sun, Trash2, Zap } from 'lucide-react';
 import { format } from 'date-fns';
-import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState, BatteryControlCommand, BatteryControlMode, ApplianceControlCommand, ApplianceConfig } from '../types';
-import { apiClient } from '../utils/api';
+import {
+  ApplianceConfig,
+  ApplianceControlCommand,
+  ApplianceState,
+  BatteryControlCommand,
+  BatteryControlMode,
+  BatteryState,
+  Device,
+  DeviceType,
+  MeterState,
+  SolarInverterState,
+} from '../types/index.ts';
+import { apiClient } from '../utils/api.ts';
 
 interface DeviceCardProps {
   device: Device;
@@ -48,14 +59,14 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.SolarInverter: {
         const state = device.state as SolarInverterState;
         return (
-          <div className="device-metrics">
-            <div className="metric">
-              <div className="metric-value">{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">Watts</div>
+          <div className='device-metrics'>
+            <div className='metric'>
+              <div className='metric-value'>{state.powerW.toFixed(0)}</div>
+              <div className='metric-label'>Watts</div>
             </div>
-            <div className="metric">
-              <div className="metric-value">{state.energyTodayKwh.toFixed(2)}</div>
-              <div className="metric-label">kWh Today</div>
+            <div className='metric'>
+              <div className='metric-value'>{state.energyTodayKwh.toFixed(2)}</div>
+              <div className='metric-label'>kWh Today</div>
             </div>
           </div>
         );
@@ -64,14 +75,17 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.Battery: {
         const state = device.state as BatteryState;
         return (
-          <div className="device-metrics">
-            <div className="metric">
-              <div className="metric-value">{Math.round(state.batteryLevel * 100)}%</div>
-              <div className="metric-label">Charge</div>
+          <div className='device-metrics'>
+            <div className='metric'>
+              <div className='metric-value'>{Math.round(state.batteryLevel * 100)}%</div>
+              <div className='metric-label'>Charge</div>
             </div>
-            <div className="metric">
-              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">Watts</div>
+            <div className='metric'>
+              <div className='metric-value'>
+                {state.powerW > 0 ? '+' : ''}
+                {state.powerW.toFixed(0)}
+              </div>
+              <div className='metric-label'>Watts</div>
             </div>
           </div>
         );
@@ -80,14 +94,14 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.Appliance: {
         const state = device.state as ApplianceState;
         return (
-          <div className="device-metrics">
-            <div className="metric">
-              <div className="metric-value">{state.isOn ? 'ON' : 'OFF'}</div>
-              <div className="metric-label">Status</div>
+          <div className='device-metrics'>
+            <div className='metric'>
+              <div className='metric-value'>{state.isOn ? 'ON' : 'OFF'}</div>
+              <div className='metric-label'>Status</div>
             </div>
-            <div className="metric">
-              <div className="metric-value">{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">Watts</div>
+            <div className='metric'>
+              <div className='metric-value'>{state.powerW.toFixed(0)}</div>
+              <div className='metric-label'>Watts</div>
             </div>
           </div>
         );
@@ -96,14 +110,17 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.Meter: {
         const state = device.state as MeterState;
         return (
-          <div className="device-metrics">
-            <div className="metric">
-              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">{state.powerW > 0 ? 'Import' : 'Export'}</div>
+          <div className='device-metrics'>
+            <div className='metric'>
+              <div className='metric-value'>
+                {state.powerW > 0 ? '+' : ''}
+                {state.powerW.toFixed(0)}
+              </div>
+              <div className='metric-label'>{state.powerW > 0 ? 'Import' : 'Export'}</div>
             </div>
-            <div className="metric">
-              <div className="metric-value">{state.energyImportTodayKwh.toFixed(2)}</div>
-              <div className="metric-label">kWh Today</div>
+            <div className='metric'>
+              <div className='metric-value'>{state.energyImportTodayKwh.toFixed(2)}</div>
+              <div className='metric-label'>kWh Today</div>
             </div>
           </div>
         );
@@ -150,7 +167,9 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       await apiClient.controlAppliance(device.deviceId, command);
       alert(`Appliance turned ${isOn ? 'ON' : 'OFF'}`);
     } catch (err) {
-      alert('Failed to control appliance: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      alert(
+        'Failed to control appliance: ' + (err instanceof Error ? err.message : 'Unknown error'),
+      );
     } finally {
       setControlLoading(false);
     }
@@ -159,14 +178,14 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
   const isOnline = device.state && 'isOnline' in device.state ? device.state.isOnline : true;
 
   return (
-    <div className="device-card">
+    <div className='device-card'>
       {/* Header */}
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
+      <div className='flex justify-between items-start mb-3'>
+        <div className='flex items-center gap-2'>
           {getDeviceIcon()}
           <div>
-            <div className="device-type">{getDeviceTypeLabel()}</div>
-            <div className="device-name">
+            <div className='device-type'>{getDeviceTypeLabel()}</div>
+            <div className='device-name'>
               {device.name || `${getDeviceTypeLabel()} ${device.deviceId.slice(0, 8)}`}
             </div>
           </div>
@@ -174,19 +193,17 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         <button
           onClick={handleDelete}
           disabled={loading}
-          className="btn btn-danger btn-sm"
-          title="Delete device"
+          className='btn btn-danger btn-sm'
+          title='Delete device'
         >
-          {loading ? (
-            <div className="spinner" style={{ width: '12px', height: '12px' }} />
-          ) : (
-            <Trash2 size={12} />
-          )}
+          {loading
+            ? <div className='spinner' style={{ width: '12px', height: '12px' }} />
+            : <Trash2 size={12} />}
         </button>
       </div>
 
       {/* Status */}
-      <div className="device-status">
+      <div className='device-status'>
         <div className={isOnline ? 'status-online' : 'status-offline'} />
         <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
           {isOnline ? 'Online' : 'Offline'}
@@ -198,28 +215,34 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       {/* Battery Controls */}
       {device.deviceType === DeviceType.Battery && (
-        <div style={{ 
-          marginTop: '1rem',
-          paddingTop: '0.75rem',
-          borderTop: '1px solid #f3f4f6'
-        }}>
-          <div style={{ 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            marginBottom: '0.5rem',
-            color: '#374151'
-          }}>
+        <div
+          style={{
+            marginTop: '1rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid #f3f4f6',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              marginBottom: '0.5rem',
+              color: '#374151',
+            }}
+          >
             Battery Control
           </div>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr',
-            gap: '0.5rem'
-          }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.5rem',
+            }}
+          >
             <button
               onClick={() => handleBatteryControl('auto')}
               disabled={controlLoading}
-              className="btn btn-secondary btn-sm"
+              className='btn btn-secondary btn-sm'
               style={{ fontSize: '0.75rem' }}
             >
               Auto
@@ -227,7 +250,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
             <button
               onClick={() => handleBatteryControl('idle')}
               disabled={controlLoading}
-              className="btn btn-secondary btn-sm"
+              className='btn btn-secondary btn-sm'
               style={{ fontSize: '0.75rem' }}
             >
               Idle
@@ -240,7 +263,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
                 }
               }}
               disabled={controlLoading}
-              className="btn btn-primary btn-sm"
+              className='btn btn-primary btn-sm'
               style={{ fontSize: '0.75rem' }}
             >
               Force Charge
@@ -253,19 +276,21 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
                 }
               }}
               disabled={controlLoading}
-              className="btn btn-primary btn-sm"
+              className='btn btn-primary btn-sm'
               style={{ fontSize: '0.75rem' }}
             >
               Force Discharge
             </button>
           </div>
           {controlLoading && (
-            <div style={{ 
-              textAlign: 'center', 
-              marginTop: '0.5rem',
-              fontSize: '0.75rem',
-              color: '#6b7280'
-            }}>
+            <div
+              style={{
+                textAlign: 'center',
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#6b7280',
+              }}
+            >
               Sending command...
             </div>
           )}
@@ -274,41 +299,49 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       {/* Appliance Controls */}
       {device.deviceType === DeviceType.Appliance && (
-        <div style={{ 
-          marginTop: '1rem',
-          paddingTop: '0.75rem',
-          borderTop: '1px solid #f3f4f6'
-        }}>
-          <div style={{ 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            marginBottom: '0.5rem',
-            color: '#374151'
-          }}>
+        <div
+          style={{
+            marginTop: '1rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid #f3f4f6',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              marginBottom: '0.5rem',
+              color: '#374151',
+            }}
+          >
             Appliance Control
           </div>
           {(() => {
             const config = device.config as ApplianceConfig;
             const state = device.state as ApplianceState;
-            
+
             if (!config.isControllable) {
               return (
-                <div style={{ 
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  fontStyle: 'italic'
-                }}>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: '#9ca3af',
+                    fontStyle: 'italic',
+                  }}
+                >
                   This appliance is not controllable
                 </div>
               );
             }
 
             return (
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.5rem'
-              }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '0.5rem',
+                }}
+              >
                 <button
                   onClick={() => handleApplianceControl(true)}
                   disabled={controlLoading || state.isOn}
@@ -329,12 +362,14 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
             );
           })()}
           {controlLoading && (
-            <div style={{ 
-              textAlign: 'center', 
-              marginTop: '0.5rem',
-              fontSize: '0.75rem',
-              color: '#6b7280'
-            }}>
+            <div
+              style={{
+                textAlign: 'center',
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#6b7280',
+              }}
+            >
               Sending command...
             </div>
           )}
@@ -342,17 +377,19 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       )}
 
       {/* Footer */}
-      <div style={{ 
-        fontSize: '0.75rem', 
-        color: '#9ca3af', 
-        marginTop: '1rem',
-        paddingTop: '0.75rem',
-        borderTop: '1px solid #f3f4f6'
-      }}>
+      <div
+        style={{
+          fontSize: '0.75rem',
+          color: '#9ca3af',
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #f3f4f6',
+        }}
+      >
         Updated: {format(new Date(device.updatedAt), 'HH:mm:ss')}
       </div>
     </div>
   );
 };
 
-export default DeviceCard; 
+export default DeviceCard;

@@ -1,8 +1,9 @@
+// @ts-types="npm:@types/express@4.17.21"
 import {Router, Request, Response} from 'express';
-import {DeviceService} from '../services/deviceService';
-import {DwellingService} from '../services/dwellingService';
-import {authenticateToken} from '../middleware/auth';
-import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema} from '../types';
+import {DeviceService} from '../services/deviceService.ts';
+import {DwellingService} from '../services/dwellingService.ts';
+import {authenticateToken} from '../middleware/auth.ts';
+import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema} from '../types/index.ts';
 import {z} from 'zod';
 
 const router = Router();

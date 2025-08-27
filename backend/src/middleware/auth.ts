@@ -1,6 +1,7 @@
+// @ts-types="npm:@types/express@4.17.21"
 import { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../services/authService';
-import { JwtPayload } from '../types';
+import { AuthService } from '../services/authService.ts';
+import { JwtPayload } from '../types/index.ts';
 
 // Extend Express Request type to include user
 declare global {
