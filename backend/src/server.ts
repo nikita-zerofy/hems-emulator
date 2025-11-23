@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import {Server} from 'socket.io';
 import {createServer} from 'http';
 import {logger} from './config/logger';
-import pinoHttp, {Options as PinoHttpOptions} from 'pino-http';
+import pinoHttp from 'pino-http';
 
 // Load environment variables
 dotenv.config();
@@ -55,7 +55,7 @@ app.use(express.urlencoded({extended: true}));
 
 app.use(
   pinoHttp({
-    logger: logger as unknown as PinoHttpOptions['logger'],
+    logger,
     autoLogging: {
       ignore: (req) => req.url === '/health',
     },
