@@ -2,10 +2,9 @@ import { Router, Request, Response } from 'express';
 import { AuthService } from '../services/authService';
 import { ApiResponse } from '../types';
 import { z } from 'zod';
-import { createModuleLogger } from '../config/logger';
+import { logger } from '../config/logger';
 
 const router = Router();
-const logger = createModuleLogger('auth');
 
 // Request validation schemas
 const RegisterSchema = z.object({

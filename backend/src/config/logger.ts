@@ -16,9 +16,3 @@ export const logger = pino(
     }
   ) as pino.LoggerOptions<string, boolean>
 );
-/**
- * Create child logger for specific modules
- */
-export const createModuleLogger = (module: string) => {
-  return logger.child({module});
-};

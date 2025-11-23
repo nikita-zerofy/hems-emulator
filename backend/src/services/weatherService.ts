@@ -1,11 +1,10 @@
 import axios from 'axios';
 import { WeatherData, Location } from '../types';
-import { createModuleLogger } from '../config/logger';
+import { logger } from '../config/logger';
 
 const OPEN_METEO_API_URL = 'https://api.open-meteo.com/v1/forecast';
 
 export class WeatherService {
-  private static logger = createModuleLogger('weather');
   /**
    * Fetch current weather and solar irradiance data for a location
    */
@@ -39,7 +38,7 @@ export class WeatherService {
         timestamp: current.time ?? new Date().toISOString()
       };
     } catch (error) {
-      this.logger.error({ 
+      logger.error({ 
         error: error instanceof Error ? error.message : 'Unknown error',
         location 
       }, 'Weather API error');
@@ -66,7 +65,7 @@ export class WeatherService {
           const weatherData = await this.getCurrentWeatherData(location);
           return { dwellingId, weatherData };
         } catch (error) {
-          this.logger.error({ 
+          logger.error({ 
             dwellingId,
             error: error instanceof Error ? error.message : 'Unknown error' 
           }, 'Weather fetch failed for dwelling');
