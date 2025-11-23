@@ -35,10 +35,7 @@ export const authenticateZerofyToken = (req: Request, res: Response, next: NextF
   }
 
   try {
-    console.log(`Authenticating Zerofy token: ${token}`);
     const decoded = ZerofyService.verifyZerofyToken(token);
-    console.log(`Decoded Zerofy token: ${JSON.stringify(decoded)}`);
-
     req.zerofyUser = {
       userId: decoded.userId,
     };
@@ -59,40 +56,3 @@ export const authenticateZerofyToken = (req: Request, res: Response, next: NextF
     });
   }
 };
-
-/**
- * Middleware to check if the token has required scopes
- */
-// export const requireZerofyScope = (requiredScope: string) => {
-//   return (req: Request, res: Response, next: NextFunction): void => {
-//     if (!req.zerofyUser) {
-//       res.status(401).json({
-//         success: false,
-//         error: {
-//           code: 'UNAUTHORIZED',
-//           message: 'Authentication required'
-//         }
-//       });
-//       return;
-//     }
-//
-//     const userScopes = req.zerofyUser.scope.split(' ');
-//
-//     if (!userScopes.includes(requiredScope)) {
-//       res.status(403).json({
-//         success: false,
-//         error: {
-//           code: 'INSUFFICIENT_SCOPE',
-//           message: `Required scope '${requiredScope}' not granted`
-//         },
-//         meta: {
-//           timestamp: new Date().toISOString(),
-//           version: '1.0.0'
-//         }
-//       });
-//       return;
-//     }
-//
-//     next();
-//   };
-// };

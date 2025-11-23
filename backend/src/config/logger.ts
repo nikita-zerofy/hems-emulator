@@ -3,7 +3,7 @@ import {createGcpLoggingPinoConfig} from "@google-cloud/pino-logging-gcp-config"
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
-const logger = isDevelopment
+export const logger = isDevelopment
   ? pino({
     level: process.env.LOG_LEVEL || "trace",
     transport: {
@@ -45,5 +45,3 @@ const logger = isDevelopment
 export const createModuleLogger = (module: string) => {
   return logger.child({module});
 };
-
-export {logger};
