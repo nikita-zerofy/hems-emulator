@@ -13,6 +13,7 @@
     "migrate": "tsx src/database/migrate.ts"
   },
   "dependencies": {
+    "@google-cloud/pino-logging-gcp-config": "^1.3.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
