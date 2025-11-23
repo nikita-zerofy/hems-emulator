@@ -93,8 +93,6 @@ export class SimulationEngine {
         return;
       }
 
-      this.logger.debug({ dwellingCount: dwellings.length }, 'Processing dwellings in simulation cycle');
-
       // 2. Fetch weather data for all dwelling locations
       const weatherDataMap = await WeatherService.getWeatherDataBatch(
         dwellings.map(d => ({dwellingId: d.dwellingId, location: d.location}))
@@ -122,10 +120,6 @@ export class SimulationEngine {
           }, 'Error simulating dwelling');
         }
       }
-
-      this.logger.info({ 
-        dwellingCount: simulationUpdates.length 
-      }, 'Simulation cycle completed');
 
       // Broadcast updates via WebSocket
       this.broadcastUpdates(simulationUpdates);

@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import {Server} from 'socket.io';
 import {createServer} from 'http';
-import {logger, requestLogger} from './config/logger';
+import {logger} from './config/logger';
 
 // Load environment variables
 dotenv.config();
@@ -53,7 +53,7 @@ app.use(express.json({limit: '10mb'}));
 app.use(express.urlencoded({extended: true}));
 
 // Request logging middleware
-app.use(requestLogger);
+// app.use(requestLogger);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
