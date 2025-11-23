@@ -2,7 +2,7 @@
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {WeatherService} from './weatherService';
-import { createModuleLogger } from '../config/logger';
+import { logger } from '../config/logger';
 import {
   Device,
   DeviceType,
@@ -23,7 +23,6 @@ export class SimulationEngine {
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
   private readonly simulationIntervalMs: number;
-  private logger = createModuleLogger('simulation');
 
   private constructor(simulationIntervalMs: number = 60000) { // 60 seconds default
     this.simulationIntervalMs = simulationIntervalMs;
@@ -44,11 +43,11 @@ export class SimulationEngine {
    */
   start(): void {
     if (this.isRunning) {
-      this.logger.warn('Simulation engine is already running');
+      logger.warn('Simulation engine is already running');
       return;
     }
 
-    this.logger.info({ 
+    logger.info({ 
       intervalMs: this.simulationIntervalMs 
     }, 'Starting HEMS simulation engine');
     this.isRunning = true;
@@ -69,7 +68,7 @@ export class SimulationEngine {
       return;
     }
 
-    this.logger.info('Stopping HEMS simulation engine');
+    logger.info('Stopping HEMS simulation engine');
     this.isRunning = false;
 
     if (this.intervalId) {
@@ -83,13 +82,13 @@ export class SimulationEngine {
    */
   private async runSimulationCycle(): Promise<void> {
     try {
-      this.logger.debug('Running simulation cycle');
+      logger.debug('Running simulation cycle');
 
       // 1. Get all dwellings
       const dwellings = await this.getAllDwellings();
 
       if (dwellings.length === 0) {
-        this.logger.debug('No dwellings found, skipping simulation cycle');
+        logger.debug('No dwellings found, skipping simulation cycle');
         return;
       }
 
@@ -105,7 +104,7 @@ export class SimulationEngine {
         try {
           const weatherData = weatherDataMap.get(dwelling.dwellingId);
           if (!weatherData) {
-            this.logger.warn({ dwellingId: dwelling.dwellingId }, 'No weather data for dwelling, skipping');
+            logger.warn({ dwellingId: dwelling.dwellingId }, 'No weather data for dwelling, skipping');
             continue;
           }
 
@@ -114,7 +113,7 @@ export class SimulationEngine {
             simulationUpdates.push(update);
           }
         } catch (error) {
-          this.logger.error({ 
+          logger.error({ 
             dwellingId: dwelling.dwellingId,
             error: error instanceof Error ? error.message : 'Unknown error' 
           }, 'Error simulating dwelling');
@@ -125,7 +124,7 @@ export class SimulationEngine {
       this.broadcastUpdates(simulationUpdates);
 
     } catch (error) {
-      this.logger.error({ 
+      logger.error({ 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }, 'Simulation cycle error');
     }
@@ -574,11 +573,11 @@ export class SimulationEngine {
         });
       }
 
-      this.logger.debug({ 
+      logger.debug({ 
         dwellingCount: updates.length 
       }, 'Broadcasted simulation updates via WebSocket');
     } catch (error) {
-      this.logger.error({ 
+      logger.error({ 
         error: error instanceof Error ? error.message : 'Unknown error' 
       }, 'WebSocket broadcast error');
     }

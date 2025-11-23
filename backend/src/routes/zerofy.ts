@@ -3,10 +3,9 @@ import { ZerofyService } from '../services/zerofyService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
 import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema } from '../types/zerofy';
 import { z } from 'zod';
-import { createModuleLogger } from '../config/logger';
+import { logger } from '../config/logger';
 
 const router = Router();
-const logger = createModuleLogger('zerofy-api');
 
 /**
  * POST /api/zerofy/auth
