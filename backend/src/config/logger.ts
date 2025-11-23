@@ -1,44 +1,21 @@
-import pino from "pino";
-import {createGcpLoggingPinoConfig} from "@google-cloud/pino-logging-gcp-config";
+import pino from 'pino';
+import {createGcpLoggingPinoConfig} from '@google-cloud/pino-logging-gcp-config';
 
-const isDevelopment = process.env.NODE_ENV !== "production";
+const logLevel = 'trace';
 
-export const logger = isDevelopment
-  ? pino({
-    level: process.env.LOG_LEVEL || "trace",
-    transport: {
-      target: "pino-pretty",
-      options: {
-        colorize: true,
-        translateTime: "SYS:standard",
-        ignore: "pid,hostname",
+export const logger = pino(
+  createGcpLoggingPinoConfig(
+    {
+      serviceContext: {
+        service: 'zerofy-emulatior',
+        version: '1.0.0',
       },
     },
-    formatters: {
-      level: (label) => {
-        return {level: label};
-      },
-    },
-    timestamp: pino.stdTimeFunctions.isoTime,
-    base: {
-      service: "zerofy-emulator",
-      version: "1.0.0",
-    },
-  })
-  : pino(
-    createGcpLoggingPinoConfig(
-      {
-        serviceContext: {
-          service: "zerofy-emulator",
-          version: "1.0.0",
-        },
-      },
-      {
-        level: process.env.LOG_LEVEL || "info",
-      }
-    ) as pino.LoggerOptions
-  );
-
+    {
+      level: logLevel,
+    }
+  ) as pino.LoggerOptions<string, boolean>
+);
 /**
  * Create child logger for specific modules
  */
