@@ -25,7 +25,7 @@ export class SimulationEngine {
   private readonly simulationIntervalMs: number;
   private logger = createModuleLogger('simulation');
 
-  private constructor(simulationIntervalMs: number = 30000) { // 30 seconds default
+  private constructor(simulationIntervalMs: number = 60000) { // 60 seconds default
     this.simulationIntervalMs = simulationIntervalMs;
   }
 

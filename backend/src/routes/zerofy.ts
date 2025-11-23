@@ -14,11 +14,6 @@ const logger = createModuleLogger('zerofy-api');
  */
 router.post('/auth', async (req: Request, res: Response) => {
   try {
-    logger.info({ 
-      email: req.body.email,
-      clientId: req.body.clientId 
-    }, 'Zerofy API authentication attempt');
-
     const authSchema = z.object({
       email: z.string().email(),
       password: z.string(),
@@ -27,12 +22,6 @@ router.post('/auth', async (req: Request, res: Response) => {
 
     const authData: ZerofyAuth = authSchema.parse(req.body);
     const authResponse = await ZerofyService.authenticate(authData);
-
-    logger.info({ 
-      userId: authResponse.userId,
-      email: req.body.email,
-      clientId: req.body.clientId 
-    }, 'Zerofy API authentication successful');
 
     const response: ZerofyApiResponse = {
       success: true,
@@ -79,16 +68,7 @@ router.get('/devices',
         throw new Error('User not authenticated');
       }
 
-      logger.info({ 
-        userId: req.zerofyUser.userId 
-      }, 'Zerofy API: Fetching user devices');
-
       const devices = await ZerofyService.getDevices(req.zerofyUser.userId);
-
-      logger.info({ 
-        userId: req.zerofyUser.userId,
-        deviceCount: devices.length 
-      }, 'Zerofy API: Successfully fetched user devices');
 
       const response: ZerofyApiResponse = {
         success: true,
@@ -259,12 +239,6 @@ router.post('/devices/:deviceId/control',
 
       const { deviceId } = req.params;
 
-      logger.info({ 
-        userId: req.zerofyUser.userId,
-        deviceId,
-        command: req.body 
-      }, 'Zerofy API: Device control command received');
-
       // Get device to determine type
       const device = await ZerofyService.getDevice(deviceId, req.zerofyUser.userId);
       if (!device) {
@@ -286,12 +260,6 @@ router.post('/devices/:deviceId/control',
         const controlCommand = ZerofyBatteryControlSchema.parse(req.body);
         await ZerofyService.controlBattery(deviceId, req.zerofyUser.userId, controlCommand);
         
-        logger.info({ 
-          userId: req.zerofyUser.userId,
-          deviceId,
-          command: controlCommand 
-        }, 'Zerofy API: Battery control command executed successfully');
-
         const response: ZerofyApiResponse = {
           success: true,
           data: {
@@ -309,12 +277,6 @@ router.post('/devices/:deviceId/control',
         const controlCommand = ZerofyApplianceControlSchema.parse(req.body);
         await ZerofyService.controlAppliance(deviceId, req.zerofyUser.userId, controlCommand);
         
-        logger.info({ 
-          userId: req.zerofyUser.userId,
-          deviceId,
-          command: controlCommand 
-        }, 'Zerofy API: Appliance control command executed successfully');
-
         const response: ZerofyApiResponse = {
           success: true,
           data: {

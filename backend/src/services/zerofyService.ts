@@ -3,27 +3,27 @@ import bcrypt from 'bcryptjs';
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {DwellingService} from './dwellingService';
-import { createModuleLogger } from '../config/logger';
+import {createModuleLogger} from '../config/logger';
 import {
+  DEVICE_CAPABILITIES,
+  DEVICE_TYPE_MAPPING,
+  ZerofyApplianceControl,
   ZerofyAuth,
   ZerofyAuthResponse,
-  ZerofyDeviceList,
-  ZerofyDeviceDetails,
-  ZerofyDeviceStatus,
   ZerofyBatteryControl,
-  ZerofyApplianceControl,
-  DEVICE_TYPE_MAPPING,
-  DEVICE_CAPABILITIES
+  ZerofyDeviceDetails,
+  ZerofyDeviceList,
+  ZerofyDeviceStatus
 } from '../types/zerofy';
 import {
+  ApplianceControlCommand,
+  ApplianceState,
+  BatteryControlCommand,
+  BatteryState,
   Device,
   DeviceType,
-  SolarInverterState,
-  BatteryState,
-  ApplianceState,
   MeterState,
-  BatteryControlCommand,
-  ApplianceControlCommand
+  SolarInverterState
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -312,12 +312,7 @@ export class ZerofyService {
    */
   static verifyZerofyToken(token: string): any {
     try {
-      this.logger.debug({ token: token.substring(0, 20) + '...' }, 'Verifying Zerofy token');
-      const result = jwt.verify(token, JWT_SECRET);
-      this.logger.debug({ 
-        userId: typeof result === 'object' && result && 'userId' in result ? result.userId : 'unknown' 
-      }, 'Zerofy token verified successfully');
-      return result
+      return jwt.verify(token, JWT_SECRET)
     } catch (error) {
       this.logger.error({ 
         error: error instanceof Error ? error.message : 'Unknown error' 
