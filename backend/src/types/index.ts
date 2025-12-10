@@ -5,7 +5,8 @@ export const DeviceType = {
   SolarInverter: 'solarInverter',
   Meter: 'meter',
   Battery: 'battery',
-  Appliance: 'appliance'
+  Appliance: 'appliance',
+  HotWaterStorage: 'hotWaterStorage'
 } as const;
 
 export type DeviceTypeValue = typeof DeviceType[keyof typeof DeviceType];
@@ -62,6 +63,14 @@ export const ApplianceConfigSchema = z.object({
   isControllable: z.boolean().default(false)
 });
 
+export const HotWaterStorageConfigSchema = z.object({
+  tankCapacityL: z.number().positive(),
+  heatingPowerW: z.number().positive(),
+  minTemperatureC: z.number(),
+  maxTemperatureC: z.number(),
+  standbyLossPerHourC: z.number().min(0)
+});
+
 export const MeterConfigSchema = z.object({
   type: z.enum(['import', 'export', 'bidirectional']).default('bidirectional')
 });
@@ -91,6 +100,14 @@ export const ApplianceStateSchema = z.object({
   isOn: z.boolean(),
   powerW: z.number().min(0),
   energyTodayKwh: z.number().min(0),
+  isOnline: z.boolean()
+});
+
+export const HotWaterStorageStateSchema = z.object({
+  power: z.number(), // Heating power (positive when heating)
+  waterTemperatureC: z.number(),
+  targetTemperatureC: z.number(),
+  isHotWaterBoostOn: z.boolean(),
   isOnline: z.boolean()
 });
 
@@ -139,8 +156,16 @@ export const ApplianceControlCommandSchema = z.object({
 });
 export type ApplianceControlCommand = z.infer<typeof ApplianceControlCommandSchema>;
 
+export const HotWaterStorageControlCommandSchema = z.object({
+  boostOn: z.boolean(),
+  targetTemperatureC: z.number().optional()
+});
+
 export type ApplianceState = z.infer<typeof ApplianceStateSchema>;
 export type MeterState = z.infer<typeof MeterStateSchema>;
+export type HotWaterStorageConfig = z.infer<typeof HotWaterStorageConfigSchema>;
+export type HotWaterStorageState = z.infer<typeof HotWaterStorageStateSchema>;
+export type HotWaterStorageControlCommand = z.infer<typeof HotWaterStorageControlCommandSchema>;
 
 // Weather data from external API
 export const WeatherDataSchema = z.object({

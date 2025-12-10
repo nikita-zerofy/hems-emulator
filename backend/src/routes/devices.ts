@@ -2,7 +2,7 @@ import {Router, Request, Response} from 'express';
 import {DeviceService} from '../services/deviceService';
 import {DwellingService} from '../services/dwellingService';
 import {authenticateToken} from '../middleware/auth';
-import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema} from '../types';
+import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema, HotWaterStorageControlCommandSchema} from '../types';
 import {z} from 'zod';
 
 const router = Router();
@@ -324,6 +324,15 @@ router.post('/devices/:deviceId/control', authenticateToken, async (req: Request
       const response: ApiResponse = {
         success: true,
         message: 'Appliance control command sent successfully'
+      };
+      return res.status(200).json(response);
+    } else if (device.deviceType === DeviceType.HotWaterStorage) {
+      const command = HotWaterStorageControlCommandSchema.parse(req.body);
+      await DeviceService.controlHotWaterStorage(deviceId, command);
+
+      const response: ApiResponse = {
+        success: true,
+        message: 'Hot water storage control command sent successfully'
       };
       return res.status(200).json(response);
     } else {

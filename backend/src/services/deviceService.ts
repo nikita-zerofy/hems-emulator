@@ -10,6 +10,8 @@ import {
   MeterState,
   BatteryControlCommand,
   ApplianceControlCommand,
+  HotWaterStorageState,
+  HotWaterStorageControlCommand,
   SolarInverterConfigSchema,
   SolarInverterStateSchema,
   BatteryConfigSchema,
@@ -17,7 +19,9 @@ import {
   ApplianceConfigSchema,
   ApplianceStateSchema,
   MeterConfigSchema,
-  MeterStateSchema
+  MeterStateSchema,
+  HotWaterStorageConfigSchema,
+  HotWaterStorageStateSchema
 } from '../types';
 
 export class DeviceService {
@@ -259,6 +263,8 @@ export class DeviceService {
         return ApplianceConfigSchema.parse(config);
       case DeviceType.Meter:
         return MeterConfigSchema.parse(config);
+      case DeviceType.HotWaterStorage:
+        return HotWaterStorageConfigSchema.parse(config);
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
     }
@@ -277,6 +283,8 @@ export class DeviceService {
         return ApplianceStateSchema.parse(state);
       case DeviceType.Meter:
         return MeterStateSchema.parse(state);
+      case DeviceType.HotWaterStorage:
+        return HotWaterStorageStateSchema.parse(state);
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
     }
@@ -321,6 +329,14 @@ export class DeviceService {
           totalEnergyExportKwh: 0,
           isOnline: true
         } satisfies MeterState;
+      case DeviceType.HotWaterStorage:
+        return {
+          power: 0,
+          waterTemperatureC: 40,
+          targetTemperatureC: 50,
+          isHotWaterBoostOn: false,
+          isOnline: true
+        } satisfies HotWaterStorageState;
 
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
@@ -398,6 +414,42 @@ export class DeviceService {
     };
 
     // Update database
+    await query(
+      'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
+      [JSON.stringify(updatedState), deviceId]
+    );
+  }
+
+  /**
+   * Control hot water storage boost state and target temperature
+   */
+  static async controlHotWaterStorage(deviceId: string, command: HotWaterStorageControlCommand): Promise<void> {
+    const deviceResult = await query(
+      'SELECT device_id, device_type, state, config FROM devices WHERE device_id = $1',
+      [deviceId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      throw new Error('Device not found');
+    }
+
+    const device = deviceResult.rows[0];
+    if (device.device_type !== DeviceType.HotWaterStorage) {
+      throw new Error('Device is not a hot water storage');
+    }
+
+    const currentState = HotWaterStorageStateSchema.parse(device.state);
+    const config = HotWaterStorageConfigSchema.parse(device.config);
+
+    const newTarget = command.targetTemperatureC ?? currentState.targetTemperatureC ?? config.maxTemperatureC;
+    const clampedTarget = Math.min(config.maxTemperatureC, Math.max(config.minTemperatureC, newTarget));
+
+    const updatedState: HotWaterStorageState = {
+      ...currentState,
+      isHotWaterBoostOn: command.boostOn,
+      targetTemperatureC: clampedTarget
+    };
+
     await query(
       'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
       [JSON.stringify(updatedState), deviceId]

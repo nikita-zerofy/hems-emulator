@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
-import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema } from '../types/zerofy';
+import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema, ZerofyHotWaterControlSchema } from '../types/zerofy';
 import { z } from 'zod';
 import { logger } from '../config/logger';
 
@@ -280,6 +280,23 @@ router.post('/devices/:deviceId/control',
           success: true,
           data: {
             message: 'Appliance control command executed successfully',
+            deviceId,
+            command: controlCommand
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(200).json(response);
+      } else if (device.deviceType === 'hotWaterStorage') {
+        const controlCommand = ZerofyHotWaterControlSchema.parse(req.body);
+        await ZerofyService.controlHotWaterStorage(deviceId, req.zerofyUser.userId, controlCommand);
+
+        const response: ZerofyApiResponse = {
+          success: true,
+          data: {
+            message: 'Hot water storage control command executed successfully',
             deviceId,
             command: controlCommand
           },

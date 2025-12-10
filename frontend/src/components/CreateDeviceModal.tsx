@@ -59,6 +59,14 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
         return {
           type: 'bidirectional'
         };
+      case DeviceType.HotWaterStorage:
+        return {
+          tankCapacityL: 200,
+          heatingPowerW: 3000,
+          minTemperatureC: 30,
+          maxTemperatureC: 65,
+          standbyLossPerHourC: 0.5
+        };
       default:
         return {};
     }
@@ -249,6 +257,69 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
             </select>
           </div>
         );
+      case DeviceType.HotWaterStorage:
+        return (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">Tank Capacity (L)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).tankCapacityL || ''}
+                  onChange={(e) => handleConfigChange('tankCapacityL', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Heating Power (W)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).heatingPowerW || ''}
+                  onChange={(e) => handleConfigChange('heatingPowerW', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="form-group">
+                <label className="form-label">Min Temp (°C)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).minTemperatureC || ''}
+                  onChange={(e) => handleConfigChange('minTemperatureC', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Max Temp (°C)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).maxTemperatureC || ''}
+                  onChange={(e) => handleConfigChange('maxTemperatureC', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Standby Loss (°C/hr)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).standbyLossPerHourC || ''}
+                  onChange={(e) => handleConfigChange('standbyLossPerHourC', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  step="0.1"
+                  min="0"
+                  required
+                />
+              </div>
+            </div>
+          </>
+        );
 
       default:
         return null;
@@ -324,6 +395,7 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                 <option value={DeviceType.Battery}>Battery</option>
                 <option value={DeviceType.Appliance}>Smart Appliance</option>
                 <option value={DeviceType.Meter}>Smart Meter</option>
+              <option value={DeviceType.HotWaterStorage}>Hot Water Storage</option>
               </select>
             </div>
 

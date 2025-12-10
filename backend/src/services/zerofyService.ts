@@ -13,7 +13,8 @@ import {
   ZerofyBatteryControl,
   ZerofyDeviceDetails,
   ZerofyDeviceList,
-  ZerofyDeviceStatus
+  ZerofyDeviceStatus,
+  ZerofyHotWaterControl
 } from '../types/zerofy';
 import {
   ApplianceControlCommand,
@@ -23,7 +24,8 @@ import {
   Device,
   DeviceType,
   MeterState,
-  SolarInverterState
+  SolarInverterState,
+  HotWaterStorageState
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -229,6 +231,12 @@ export class ZerofyService {
         energy = state.energyImportTodayKwh;
         break;
       }
+      case DeviceType.HotWaterStorage: {
+        const state = device.state as HotWaterStorageState;
+        power = state.power;
+        energy = 0;
+        break;
+      }
     }
 
     return {
@@ -304,6 +312,27 @@ export class ZerofyService {
 
     // Use existing device service method
     await DeviceService.controlAppliance(deviceId, command);
+  }
+
+  /**
+   * Control hot water storage boost state for Zerofy app
+   */
+  static async controlHotWaterStorage(deviceId: string, userId: string, control: ZerofyHotWaterControl): Promise<void> {
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    if (device.deviceType !== DeviceType.HotWaterStorage) {
+      throw new Error('Device is not a hot water storage');
+    }
+
+    await DeviceService.controlHotWaterStorage(deviceId, control);
   }
 
   /**
