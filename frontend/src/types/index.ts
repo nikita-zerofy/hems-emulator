@@ -37,7 +37,8 @@ export enum DeviceType {
   SolarInverter = 'solarInverter',
   Battery = 'battery',
   Appliance = 'appliance',
-  Meter = 'meter'
+  Meter = 'meter',
+  HotWaterStorage = 'hotWaterStorage'
 }
 
 // Device configurations
@@ -65,6 +66,14 @@ export interface ApplianceConfig {
 
 export interface MeterConfig {
   type: 'import' | 'export' | 'bidirectional';
+}
+
+export interface HotWaterStorageConfig {
+  tankCapacityL: number;
+  heatingPowerW: number;
+  minTemperatureC: number;
+  maxTemperatureC: number;
+  standbyLossPerHourC: number;
 }
 
 // Device states
@@ -99,14 +108,22 @@ export interface MeterState {
   isOnline: boolean;
 }
 
+export interface HotWaterStorageState {
+  power: number;
+  waterTemperatureC: number;
+  targetTemperatureC: number;
+  isHotWaterBoostOn: boolean;
+  isOnline: boolean;
+}
+
 // Generic device interface
 export interface Device {
   deviceId: string;
   dwellingId: string;
   deviceType: DeviceType;
   name?: string;
-  config: SolarInverterConfig | BatteryConfig | ApplianceConfig | MeterConfig;
-  state: SolarInverterState | BatteryState | ApplianceState | MeterState;
+  config: SolarInverterConfig | BatteryConfig | ApplianceConfig | MeterConfig | HotWaterStorageConfig;
+  state: SolarInverterState | BatteryState | ApplianceState | MeterState | HotWaterStorageState;
   createdAt: string;
   updatedAt: string;
 }
@@ -159,4 +176,9 @@ export interface BatteryControlCommand {
 
 export interface ApplianceControlCommand {
   isOn: boolean;
+}
+
+export interface HotWaterStorageControlCommand {
+  boostOn: boolean;
+  targetTemperatureC?: number;
 }

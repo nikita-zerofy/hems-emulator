@@ -14,6 +14,8 @@ import {
   ApplianceConfig,
   ApplianceState,
   MeterState,
+  HotWaterStorageState,
+  HotWaterStorageConfig,
   SimulationUpdate,
   Dwelling
 } from '../types';
@@ -147,8 +149,11 @@ export class SimulationEngine {
     // Calculate current solar generation
     const solarPowerW = this.calculateSolarGeneration(devicesByType.solarInverter, weatherData);
 
-    // Calculate household load (appliances + phantom load)
-    const householdLoadW = this.calculateHouseholdLoad(devicesByType.appliance);
+    // Calculate household load (appliances + hot water + phantom load)
+    const householdLoadW = this.calculateHouseholdLoad(
+      devicesByType.appliance,
+      devicesByType.hotWaterStorage
+    );
 
     // Execute energy flow logic
     const energyFlows = this.calculateEnergyFlows(
@@ -203,7 +208,7 @@ export class SimulationEngine {
   /**
    * Calculate total household load from appliances
    */
-  private calculateHouseholdLoad(appliances: Device[]): number {
+  private calculateHouseholdLoad(appliances: Device[], hotWaterStorages: Device[] = []): number {
     let totalLoadW = 0;
 
     // Sum power from all "on" appliances
@@ -211,6 +216,15 @@ export class SimulationEngine {
       const state = appliance.state as ApplianceState;
       if (state.isOn && state.isOnline) {
         totalLoadW += state.powerW;
+      }
+    }
+
+    // Add hot water storage heating load when boost is on
+    for (const storage of hotWaterStorages) {
+      const state = storage.state as HotWaterStorageState;
+      const config = storage.config as HotWaterStorageConfig;
+      if (state.isOnline && state.isHotWaterBoostOn) {
+        totalLoadW += config.heatingPowerW;
       }
     }
 
@@ -480,6 +494,45 @@ export class SimulationEngine {
       updates.push({deviceId: appliance.deviceId, state: newState});
     }
 
+    // Update hot water storage
+    for (const storage of devicesByType.hotWaterStorage) {
+      const currentState = storage.state as HotWaterStorageState;
+      const config = storage.config as HotWaterStorageConfig;
+
+      const intervalSeconds = this.simulationIntervalMs / 1000;
+      const waterMassKg = config.tankCapacityL; // 1L water ≈ 1kg
+      const specificHeatCapacity = 4186; // J/(kg·°C)
+
+      let waterTemperatureC = currentState.waterTemperatureC;
+      let power = 0;
+
+      if (currentState.isHotWaterBoostOn) {
+        const remainingDelta = currentState.targetTemperatureC - waterTemperatureC;
+        if (remainingDelta > 0) {
+          power = config.heatingPowerW;
+          const temperatureRise = (power * intervalSeconds) / (waterMassKg * specificHeatCapacity);
+          waterTemperatureC += temperatureRise;
+        }
+      } else {
+        const lossPerSecond = config.standbyLossPerHourC / 3600;
+        waterTemperatureC -= lossPerSecond * intervalSeconds;
+      }
+
+      // Clamp temperatures within bounds and target
+      const clampedTarget = Math.min(config.maxTemperatureC, Math.max(config.minTemperatureC, currentState.targetTemperatureC));
+      waterTemperatureC = Math.min(clampedTarget, waterTemperatureC);
+      waterTemperatureC = Math.max(config.minTemperatureC, Math.min(config.maxTemperatureC, waterTemperatureC));
+
+      const newState: HotWaterStorageState = {
+        ...currentState,
+        power,
+        waterTemperatureC,
+        targetTemperatureC: clampedTarget
+      };
+
+      updates.push({deviceId: storage.deviceId, state: newState});
+    }
+
     // Batch update all device states
     await DeviceService.updateDeviceStatesBatch(updates);
 
@@ -515,7 +568,8 @@ export class SimulationEngine {
       solarInverter: [],
       battery: [],
       appliance: [],
-      meter: []
+      meter: [],
+      hotWaterStorage: []
     };
 
     for (const device of devices) {
@@ -531,6 +585,9 @@ export class SimulationEngine {
           break;
         case DeviceType.Meter:
           grouped.meter.push(device);
+          break;
+        case DeviceType.HotWaterStorage:
+          grouped.hotWaterStorage.push(device);
           break;
       }
     }
@@ -590,6 +647,7 @@ type DevicesByType = {
   battery: Device[];
   appliance: Device[];
   meter: Device[];
+  hotWaterStorage: Device[];
 };
 
 type EnergyFlows = {
