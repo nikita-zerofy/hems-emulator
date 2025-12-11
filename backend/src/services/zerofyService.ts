@@ -202,6 +202,9 @@ export class ZerofyService {
     let energy = 0;
     let batteryLevel = 0;
     let isOn: boolean | undefined = undefined;
+    let waterTemperatureC: number | undefined = undefined;
+    let targetTemperatureC: number | undefined = undefined;
+    let isHotWaterBoostOn: boolean | undefined = undefined;
 
     // Extract power and energy based on device type
     switch (device.deviceType) {
@@ -235,6 +238,9 @@ export class ZerofyService {
         const state = device.state as HotWaterStorageState;
         power = state.power;
         energy = 0;
+        waterTemperatureC = state.waterTemperatureC;
+        targetTemperatureC = state.targetTemperatureC;
+        isHotWaterBoostOn = state.isHotWaterBoostOn;
         break;
       }
     }
@@ -247,6 +253,9 @@ export class ZerofyService {
       energy: Math.round(energy * 100) / 100, // Round to 2 decimal places
       batteryLevel: Math.round(batteryLevel),
       isOn,
+      waterTemperatureC,
+      targetTemperatureC,
+      isHotWaterBoostOn,
       lastUpdate: device.updatedAt.toString(),
       metadata: {
         deviceType: device.deviceType,

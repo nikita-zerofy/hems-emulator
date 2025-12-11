@@ -18,6 +18,9 @@ export const ZerofyDeviceStatusSchema = z.object({
   energy: z.number(), // Energy today in kWh
   batteryLevel: z.number(),
   isOn: z.boolean().optional(), // On/off state for appliances
+  waterTemperatureC: z.number().optional(),
+  targetTemperatureC: z.number().optional(),
+  isHotWaterBoostOn: z.boolean().optional(),
   lastUpdate: z.string().datetime(),
   metadata: z.record(z.unknown()).optional()
 });
