@@ -6,7 +6,9 @@ export const DeviceType = {
   Meter: 'meter',
   Battery: 'battery',
   Appliance: 'appliance',
-  HotWaterStorage: 'hotWaterStorage'
+  HotWaterStorage: 'hotWaterStorage',
+  EV: 'ev',
+  EVCharger: 'evCharger'
 } as const;
 
 export type DeviceTypeValue = typeof DeviceType[keyof typeof DeviceType];
@@ -57,6 +59,12 @@ export const BatteryConfigSchema = z.object({
   maxSoc: z.number().min(0).max(1).default(1.0)   // Maximum state of charge
 });
 
+export const EVConfigSchema = z.object({
+  batteryCapacityKwh: z.number().positive(),
+  maxChargePowerW: z.number().positive(),
+  efficiency: z.number().min(0).max(1).default(0.92)
+});
+
 export const ApplianceConfigSchema = z.object({
   name: z.string(),
   powerW: z.number().positive(),
@@ -69,6 +77,12 @@ export const HotWaterStorageConfigSchema = z.object({
   minTemperatureC: z.number(),
   maxTemperatureC: z.number(),
   standbyLossPerHourC: z.number().min(0)
+});
+
+export const EVChargerConfigSchema = z.object({
+  maxPowerW: z.number().positive(),
+  minPowerW: z.number().min(0),
+  efficiency: z.number().min(0).max(1).default(0.98)
 });
 
 export const MeterConfigSchema = z.object({
@@ -96,6 +110,15 @@ export const BatteryStateSchema = z.object({
   forcePowerW: z.number().optional() // Power target when in force mode
 });
 
+export const EVStateSchema = z.object({
+  batteryLevel: z.number().min(0).max(1),
+  isPluggedIn: z.boolean(),
+  isCharging: z.boolean(),
+  powerW: z.number(),
+  energyTodayKwh: z.number().min(0),
+  isOnline: z.boolean()
+});
+
 export const ApplianceStateSchema = z.object({
   isOn: z.boolean(),
   powerW: z.number().min(0),
@@ -108,6 +131,14 @@ export const HotWaterStorageStateSchema = z.object({
   waterTemperatureC: z.number(),
   targetTemperatureC: z.number(),
   isHotWaterBoostOn: z.boolean(),
+  isOnline: z.boolean()
+});
+
+export const EVChargerStateSchema = z.object({
+  isCharging: z.boolean(),
+  powerW: z.number(),
+  targetPowerW: z.number().optional(),
+  energyTodayKwh: z.number().min(0),
   isOnline: z.boolean()
 });
 
@@ -161,11 +192,21 @@ export const HotWaterStorageControlCommandSchema = z.object({
   targetTemperatureC: z.number().optional()
 });
 
+export const EVChargerControlCommandSchema = z.object({
+  isCharging: z.boolean(),
+  targetPowerW: z.number().optional()
+});
+
 export type ApplianceState = z.infer<typeof ApplianceStateSchema>;
 export type MeterState = z.infer<typeof MeterStateSchema>;
 export type HotWaterStorageConfig = z.infer<typeof HotWaterStorageConfigSchema>;
 export type HotWaterStorageState = z.infer<typeof HotWaterStorageStateSchema>;
 export type HotWaterStorageControlCommand = z.infer<typeof HotWaterStorageControlCommandSchema>;
+export type EVConfig = z.infer<typeof EVConfigSchema>;
+export type EVState = z.infer<typeof EVStateSchema>;
+export type EVChargerConfig = z.infer<typeof EVChargerConfigSchema>;
+export type EVChargerState = z.infer<typeof EVChargerStateSchema>;
+export type EVChargerControlCommand = z.infer<typeof EVChargerControlCommandSchema>;
 
 // Weather data from external API
 export const WeatherDataSchema = z.object({

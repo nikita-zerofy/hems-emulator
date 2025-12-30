@@ -2,7 +2,14 @@ import {Router, Request, Response} from 'express';
 import {DeviceService} from '../services/deviceService';
 import {DwellingService} from '../services/dwellingService';
 import {authenticateToken} from '../middleware/auth';
-import {ApiResponse, DeviceType, BatteryControlCommandSchema, ApplianceControlCommandSchema, HotWaterStorageControlCommandSchema} from '../types';
+import {
+  ApiResponse,
+  DeviceType,
+  BatteryControlCommandSchema,
+  ApplianceControlCommandSchema,
+  HotWaterStorageControlCommandSchema,
+  EVChargerControlCommandSchema
+} from '../types';
 import {z} from 'zod';
 
 const router = Router();
@@ -347,6 +354,48 @@ router.post('/devices/:deviceId/control', authenticateToken, async (req: Request
     const response: ApiResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to control device'
+    };
+
+    return res.status(400).json(response);
+  }
+});
+
+/**
+ * POST /devices/:deviceId/control/evcharger
+ * Control EV charger (start/stop, set power)
+ */
+router.post('/devices/:deviceId/control/evcharger', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const deviceId = req.params.deviceId;
+
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        error: 'Device not found'
+      } satisfies ApiResponse);
+    }
+
+    if (device.deviceType !== DeviceType.EVCharger) {
+      return res.status(400).json({
+        success: false,
+        error: 'Device is not an EV charger'
+      } satisfies ApiResponse);
+    }
+
+    const command = EVChargerControlCommandSchema.parse(req.body);
+    await DeviceService.controlEVCharger(deviceId, command);
+
+    return res.status(200).json({
+      success: true,
+      message: 'EV charger control command sent successfully'
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('EV charger control error:', error);
+
+    const response: ApiResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to control EV charger'
     };
 
     return res.status(400).json(response);

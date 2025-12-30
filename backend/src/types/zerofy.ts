@@ -12,7 +12,7 @@ export type ZerofyAuth = z.infer<typeof ZerofyAuthSchema>;
 // Zerofy Device Status Response
 export const ZerofyDeviceStatusSchema = z.object({
   deviceId: z.string(),
-  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage']),
+  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   status: z.enum(['online', 'offline', 'error']),
   power: z.number(), // Current power in watts
   energy: z.number(), // Energy today in kWh
@@ -21,6 +21,8 @@ export const ZerofyDeviceStatusSchema = z.object({
   waterTemperatureC: z.number().optional(),
   targetTemperatureC: z.number().optional(),
   isHotWaterBoostOn: z.boolean().optional(),
+  isCharging: z.boolean().optional(),
+  targetPowerW: z.number().optional(),
   lastUpdate: z.string().datetime(),
   metadata: z.record(z.unknown()).optional()
 });
@@ -30,7 +32,7 @@ export type ZerofyDeviceStatus = z.infer<typeof ZerofyDeviceStatusSchema>;
 // Zerofy Device List Response
 export const ZerofyDeviceListSchema = z.object({
   deviceId: z.string(),
-  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage']),
+  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
   location: z.object({
@@ -46,7 +48,7 @@ export type ZerofyDeviceList = z.infer<typeof ZerofyDeviceListSchema>;
 // Zerofy Device Details Response
 export const ZerofyDeviceDetailsSchema = z.object({
   deviceId: z.string(),
-  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage']),
+  deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
   location: z.object({
@@ -105,7 +107,9 @@ export const DEVICE_TYPE_MAPPING = {
   battery: 'battery',
   meter: 'meter',
   appliance: 'appliance',
-  hotWaterStorage: 'hotWaterStorage'
+  hotWaterStorage: 'hotWaterStorage',
+  ev: 'ev',
+  evCharger: 'evCharger'
 } as const;
 
 // Device capabilities mapping
@@ -114,7 +118,9 @@ export const DEVICE_CAPABILITIES = {
   battery: ['energy_storage', 'power_control', 'soc_monitoring'],
   meter: ['power_monitoring', 'energy_monitoring', 'bidirectional_flow'],
   appliance: ['power_control', 'energy_monitoring', 'remote_control'],
-  hotWaterStorage: ['water_heating', 'boost_control', 'temperature_monitoring']
+  hotWaterStorage: ['water_heating', 'boost_control', 'temperature_monitoring'],
+  ev: ['soc_monitoring', 'charging_status', 'energy_monitoring'],
+  evCharger: ['charging_control', 'power_control', 'energy_monitoring']
 } as const;
 
 // Zerofy Battery Control
@@ -139,3 +145,11 @@ export const ZerofyHotWaterControlSchema = z.object({
 });
 
 export type ZerofyHotWaterControl = z.infer<typeof ZerofyHotWaterControlSchema>;
+
+// Zerofy EV Charger Control
+export const ZerofyEVChargerControlSchema = z.object({
+  isCharging: z.boolean(),
+  targetPowerW: z.number().optional()
+});
+
+export type ZerofyEVChargerControl = z.infer<typeof ZerofyEVChargerControlSchema>;

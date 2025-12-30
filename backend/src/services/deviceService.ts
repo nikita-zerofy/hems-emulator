@@ -21,7 +21,14 @@ import {
   MeterConfigSchema,
   MeterStateSchema,
   HotWaterStorageConfigSchema,
-  HotWaterStorageStateSchema
+  HotWaterStorageStateSchema,
+  EVConfigSchema,
+  EVStateSchema,
+  EVChargerConfigSchema,
+  EVChargerStateSchema,
+  EVChargerControlCommand,
+  EVState,
+  EVChargerState
 } from '../types';
 
 export class DeviceService {
@@ -259,12 +266,16 @@ export class DeviceService {
         return SolarInverterConfigSchema.parse(config);
       case DeviceType.Battery:
         return BatteryConfigSchema.parse(config);
+      case DeviceType.EV:
+        return EVConfigSchema.parse(config);
       case DeviceType.Appliance:
         return ApplianceConfigSchema.parse(config);
       case DeviceType.Meter:
         return MeterConfigSchema.parse(config);
       case DeviceType.HotWaterStorage:
         return HotWaterStorageConfigSchema.parse(config);
+      case DeviceType.EVCharger:
+        return EVChargerConfigSchema.parse(config);
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
     }
@@ -279,12 +290,16 @@ export class DeviceService {
         return SolarInverterStateSchema.parse(state);
       case DeviceType.Battery:
         return BatteryStateSchema.parse(state);
+      case DeviceType.EV:
+        return EVStateSchema.parse(state);
       case DeviceType.Appliance:
         return ApplianceStateSchema.parse(state);
       case DeviceType.Meter:
         return MeterStateSchema.parse(state);
       case DeviceType.HotWaterStorage:
         return HotWaterStorageStateSchema.parse(state);
+      case DeviceType.EVCharger:
+        return EVChargerStateSchema.parse(state);
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
     }
@@ -312,6 +327,16 @@ export class DeviceService {
           controlMode: "auto" // Default mode, adjust if needed
         } satisfies BatteryState;
 
+      case DeviceType.EV:
+        return {
+          batteryLevel: 0.5,
+          isPluggedIn: true,
+          isCharging: true,
+          powerW: 0,
+          energyTodayKwh: 0,
+          isOnline: true
+        } satisfies EVState;
+
       case DeviceType.Appliance:
         return {
           isOn: false,
@@ -337,6 +362,15 @@ export class DeviceService {
           isHotWaterBoostOn: false,
           isOnline: true
         } satisfies HotWaterStorageState;
+
+      case DeviceType.EVCharger:
+        return {
+          isCharging: false,
+          powerW: 0,
+          targetPowerW: undefined,
+          energyTodayKwh: 0,
+          isOnline: true
+        } satisfies EVChargerState;
 
       default:
         throw new Error(`Unknown device type: ${deviceType}`);
@@ -448,6 +482,43 @@ export class DeviceService {
       ...currentState,
       isHotWaterBoostOn: command.boostOn,
       targetTemperatureC: clampedTarget
+    };
+
+    await query(
+      'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
+      [JSON.stringify(updatedState), deviceId]
+    );
+  }
+
+  /**
+   * Control EV charger start/stop and target power
+   */
+  static async controlEVCharger(deviceId: string, command: EVChargerControlCommand): Promise<void> {
+    const deviceResult = await query(
+      'SELECT device_id, device_type, state, config FROM devices WHERE device_id = $1',
+      [deviceId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      throw new Error('Device not found');
+    }
+
+    const device = deviceResult.rows[0];
+    if (device.device_type !== DeviceType.EVCharger) {
+      throw new Error('Device is not an EV charger');
+    }
+
+    const currentState = EVChargerStateSchema.parse(device.state);
+    const config = EVChargerConfigSchema.parse(device.config);
+
+    const desiredPower = command.targetPowerW ?? currentState.targetPowerW ?? config.maxPowerW;
+    const clampedPower = Math.max(config.minPowerW, Math.min(config.maxPowerW, desiredPower));
+
+    const updatedState: EVChargerState = {
+      ...currentState,
+      isCharging: command.isCharging,
+      targetPowerW: clampedPower,
+      powerW: command.isCharging ? clampedPower : 0
     };
 
     await query(

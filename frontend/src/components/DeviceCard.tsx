@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
-import { Trash2, Sun, Battery, Zap, Home, Droplet } from 'lucide-react';
+import { Trash2, Sun, Battery, Zap, Home, Droplet, Car, PlugZap } from 'lucide-react';
 import { format } from 'date-fns';
-import { Device, DeviceType, SolarInverterState, BatteryState, ApplianceState, MeterState, BatteryControlCommand, BatteryControlMode, ApplianceControlCommand, ApplianceConfig, HotWaterStorageState, HotWaterStorageControlCommand } from '../types';
+import {
+  Device,
+  DeviceType,
+  SolarInverterState,
+  BatteryState,
+  ApplianceState,
+  MeterState,
+  BatteryControlCommand,
+  BatteryControlMode,
+  ApplianceControlCommand,
+  ApplianceConfig,
+  HotWaterStorageState,
+  HotWaterStorageControlCommand,
+  EVState,
+  EVChargerState,
+  EVChargerControlCommand
+} from '../types';
 import { apiClient } from '../utils/api';
 
 interface DeviceCardProps {
@@ -12,9 +28,14 @@ interface DeviceCardProps {
 const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
   const [loading, setLoading] = useState(false);
   const [controlLoading, setControlLoading] = useState(false);
+  const [currentDevice, setCurrentDevice] = useState<Device>(device);
+
+  React.useEffect(() => {
+    setCurrentDevice(device);
+  }, [device]);
 
   const getDeviceIcon = () => {
-    switch (device.deviceType) {
+    switch (currentDevice.deviceType) {
       case DeviceType.SolarInverter:
         return <Sun size={20} style={{ color: '#f59e0b' }} />;
       case DeviceType.Battery:
@@ -25,13 +46,17 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         return <Home size={20} style={{ color: '#6b7280' }} />;
       case DeviceType.HotWaterStorage:
         return <Droplet size={20} style={{ color: '#0ea5e9' }} />;
+      case DeviceType.EV:
+        return <Car size={20} style={{ color: '#111827' }} />;
+      case DeviceType.EVCharger:
+        return <PlugZap size={20} style={{ color: '#7c3aed' }} />;
       default:
         return <div style={{ width: 20, height: 20 }} />;
     }
   };
 
   const getDeviceTypeLabel = () => {
-    switch (device.deviceType) {
+    switch (currentDevice.deviceType) {
       case DeviceType.SolarInverter:
         return 'Solar Inverter';
       case DeviceType.Battery:
@@ -42,15 +67,19 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         return 'Smart Meter';
       case DeviceType.HotWaterStorage:
         return 'Hot Water Storage';
+      case DeviceType.EV:
+        return 'EV';
+      case DeviceType.EVCharger:
+        return 'EV Charger';
       default:
         return device.deviceType;
     }
   };
 
   const renderMetrics = () => {
-    switch (device.deviceType) {
+    switch (currentDevice.deviceType) {
       case DeviceType.SolarInverter: {
-        const state = device.state as SolarInverterState;
+        const state = currentDevice.state as SolarInverterState;
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -66,7 +95,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       }
 
       case DeviceType.Battery: {
-        const state = device.state as BatteryState;
+        const state = currentDevice.state as BatteryState;
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -82,7 +111,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       }
 
       case DeviceType.Appliance: {
-        const state = device.state as ApplianceState;
+        const state = currentDevice.state as ApplianceState;
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -98,7 +127,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       }
 
       case DeviceType.Meter: {
-        const state = device.state as MeterState;
+        const state = currentDevice.state as MeterState;
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -114,7 +143,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       }
 
       case DeviceType.HotWaterStorage: {
-        const state = device.state as HotWaterStorageState;
+        const state = currentDevice.state as HotWaterStorageState;
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -137,6 +166,46 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         );
       }
 
+      case DeviceType.EV: {
+        const state = currentDevice.state as EVState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{Math.round(state.batteryLevel * 100)}%</div>
+              <div className="metric-label">Battery</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.isCharging ? 'Charging' : 'Idle'}</div>
+              <div className="metric-label">Status</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">Watts</div>
+            </div>
+          </div>
+        );
+      }
+
+      case DeviceType.EVCharger: {
+        const state = currentDevice.state as EVChargerState;
+        return (
+          <div className="device-metrics">
+            <div className="metric">
+              <div className="metric-value">{state.isCharging ? 'ON' : 'OFF'}</div>
+              <div className="metric-label">Charging</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
+              <div className="metric-label">Watts</div>
+            </div>
+            <div className="metric">
+              <div className="metric-value">{state.targetPowerW ? state.targetPowerW.toFixed(0) : '-'}</div>
+              <div className="metric-label">Target W</div>
+            </div>
+          </div>
+        );
+      }
+
       default:
         return null;
     }
@@ -149,8 +218,8 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
     try {
       setLoading(true);
-      await apiClient.deleteDevice(device.deviceId);
-      onDeviceDeleted(device.deviceId);
+      await apiClient.deleteDevice(currentDevice.deviceId);
+      onDeviceDeleted(currentDevice.deviceId);
     } catch (err) {
       alert('Failed to delete device: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
@@ -162,7 +231,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     try {
       setControlLoading(true);
       const command: BatteryControlCommand = { mode, powerW };
-      await apiClient.controlBattery(device.deviceId, command);
+      await apiClient.controlBattery(currentDevice.deviceId, command);
       alert(`Battery control set to ${mode}${powerW ? ` at ${powerW}W` : ''}`);
     } catch (err) {
       alert('Failed to control battery: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -175,7 +244,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     try {
       setControlLoading(true);
       const command: ApplianceControlCommand = { isOn };
-      await apiClient.controlAppliance(device.deviceId, command);
+      await apiClient.controlAppliance(currentDevice.deviceId, command);
       alert(`Appliance turned ${isOn ? 'ON' : 'OFF'}`);
     } catch (err) {
       alert('Failed to control appliance: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -188,7 +257,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     try {
       setControlLoading(true);
       const command: HotWaterStorageControlCommand = { boostOn };
-      await apiClient.controlHotWaterStorage(device.deviceId, command);
+      await apiClient.controlHotWaterStorage(currentDevice.deviceId, command);
       alert(`Hot water boost turned ${boostOn ? 'ON' : 'OFF'}`);
     } catch (err) {
       alert('Failed to control hot water storage: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -197,7 +266,22 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     }
   };
 
-  const isOnline = device.state && 'isOnline' in device.state ? device.state.isOnline : true;
+  const handleEVChargerControl = async (isCharging: boolean, targetPowerW?: number) => {
+    try {
+      setControlLoading(true);
+      const command: EVChargerControlCommand = { isCharging, targetPowerW };
+      await apiClient.controlEVCharger(currentDevice.deviceId, command);
+      const updated = await apiClient.getDevice(currentDevice.deviceId);
+      setCurrentDevice(updated);
+      alert(`EV charger ${isCharging ? 'started' : 'stopped'}${targetPowerW ? ` at ${targetPowerW}W` : ''}`);
+    } catch (err) {
+      alert('Failed to control EV charger: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
+  const isOnline = currentDevice.state && 'isOnline' in currentDevice.state ? (currentDevice.state as any).isOnline : true;
 
   return (
     <div className="device-card">
@@ -383,7 +467,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       )}
 
       {/* Hot Water Storage Controls */}
-      {device.deviceType === DeviceType.HotWaterStorage && (
+      {currentDevice.deviceType === DeviceType.HotWaterStorage && (
         <div style={{ 
           marginTop: '1rem',
           paddingTop: '0.75rem',
@@ -432,6 +516,69 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         </div>
       )}
 
+      {/* EV Charger Controls */}
+      {currentDevice.deviceType === DeviceType.EVCharger && (
+        <div style={{ 
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #f3f4f6'
+        }}>
+          <div style={{ 
+            fontSize: '0.875rem', 
+            fontWeight: '500', 
+            marginBottom: '0.5rem',
+            color: '#374151'
+          }}>
+            EV Charger Control
+          </div>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr',
+            gap: '0.5rem'
+          }}>
+            <button
+              onClick={() => handleEVChargerControl(true)}
+              disabled={controlLoading}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Start Charging
+            </button>
+            <button
+              onClick={() => handleEVChargerControl(false)}
+              disabled={controlLoading}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Stop Charging
+            </button>
+            <button
+              onClick={() => {
+                const power = prompt('Set target power (W):', '7000');
+                if (power && !isNaN(Number(power))) {
+                  handleEVChargerControl(true, Number(power));
+                }
+              }}
+              disabled={controlLoading}
+              className="btn btn-primary btn-sm"
+              style={{ fontSize: '0.75rem' }}
+            >
+              Set Power
+            </button>
+          </div>
+          {controlLoading && (
+            <div style={{ 
+              textAlign: 'center', 
+              marginTop: '0.5rem',
+              fontSize: '0.75rem',
+              color: '#6b7280'
+            }}>
+              Sending command...
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
       <div style={{ 
         fontSize: '0.75rem', 
@@ -440,7 +587,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
         paddingTop: '0.75rem',
         borderTop: '1px solid #f3f4f6'
       }}>
-        Updated: {format(new Date(device.updatedAt), 'HH:mm:ss')}
+        Updated: {format(new Date(currentDevice.updatedAt), 'HH:mm:ss')}
       </div>
     </div>
   );

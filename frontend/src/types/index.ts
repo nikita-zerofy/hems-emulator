@@ -38,7 +38,9 @@ export enum DeviceType {
   Battery = 'battery',
   Appliance = 'appliance',
   Meter = 'meter',
-  HotWaterStorage = 'hotWaterStorage'
+  HotWaterStorage = 'hotWaterStorage',
+  EV = 'ev',
+  EVCharger = 'evCharger'
 }
 
 // Device configurations
@@ -56,6 +58,12 @@ export interface BatteryConfig {
   efficiency: number;
   minSoc: number;
   maxSoc: number;
+}
+
+export interface EVConfig {
+  batteryCapacityKwh: number;
+  maxChargePowerW: number;
+  efficiency: number;
 }
 
 export interface ApplianceConfig {
@@ -76,6 +84,12 @@ export interface HotWaterStorageConfig {
   standbyLossPerHourC: number;
 }
 
+export interface EVChargerConfig {
+  maxPowerW: number;
+  minPowerW: number;
+  efficiency: number;
+}
+
 // Device states
 export interface SolarInverterState {
   powerW: number;
@@ -90,6 +104,15 @@ export interface BatteryState {
   isCharging: boolean;
   isOnline: boolean;
   temperatureC?: number;
+}
+
+export interface EVState {
+  batteryLevel: number;
+  isPluggedIn: boolean;
+  isCharging: boolean;
+  powerW: number;
+  energyTodayKwh: number;
+  isOnline: boolean;
 }
 
 export interface ApplianceState {
@@ -116,14 +139,22 @@ export interface HotWaterStorageState {
   isOnline: boolean;
 }
 
+export interface EVChargerState {
+  isCharging: boolean;
+  powerW: number;
+  targetPowerW?: number;
+  energyTodayKwh: number;
+  isOnline: boolean;
+}
+
 // Generic device interface
 export interface Device {
   deviceId: string;
   dwellingId: string;
   deviceType: DeviceType;
   name?: string;
-  config: SolarInverterConfig | BatteryConfig | ApplianceConfig | MeterConfig | HotWaterStorageConfig;
-  state: SolarInverterState | BatteryState | ApplianceState | MeterState | HotWaterStorageState;
+  config: SolarInverterConfig | BatteryConfig | EVConfig | ApplianceConfig | MeterConfig | HotWaterStorageConfig | EVChargerConfig;
+  state: SolarInverterState | BatteryState | EVState | ApplianceState | MeterState | HotWaterStorageState | EVChargerState;
   createdAt: string;
   updatedAt: string;
 }
@@ -181,4 +212,9 @@ export interface ApplianceControlCommand {
 export interface HotWaterStorageControlCommand {
   boostOn: boolean;
   targetTemperatureC?: number;
+}
+
+export interface EVChargerControlCommand {
+  isCharging: boolean;
+  targetPowerW?: number;
 }

@@ -11,7 +11,8 @@ import {
   BatteryControlCommand,
   ApplianceControlCommand,
   CreateDeviceForm,
-  HotWaterStorageControlCommand 
+  HotWaterStorageControlCommand,
+  EVChargerControlCommand 
 } from '../types';
 
 const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
@@ -193,6 +194,12 @@ class ApiClient {
   // Hot Water Storage Control
   async controlHotWaterStorage(deviceId: string, command: HotWaterStorageControlCommand): Promise<ApiResponse> {
     const response = await this.client.post(`/devices/${deviceId}/control`, command);
+    return response.data;
+  }
+
+  // EV Charger Control
+  async controlEVCharger(deviceId: string, command: EVChargerControlCommand): Promise<ApiResponse> {
+    const response = await this.client.post(`/devices/${deviceId}/control/evcharger`, command);
     return response.data;
   }
 

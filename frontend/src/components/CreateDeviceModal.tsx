@@ -49,6 +49,12 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           minSoc: 0.1,
           maxSoc: 1.0
         };
+      case DeviceType.EV:
+        return {
+          batteryCapacityKwh: 60,
+          maxChargePowerW: 11000,
+          efficiency: 0.92
+        };
       case DeviceType.Appliance:
         return {
           name: 'Electric Vehicle Charger',
@@ -66,6 +72,12 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           minTemperatureC: 30,
           maxTemperatureC: 65,
           standbyLossPerHourC: 0.5
+        };
+      case DeviceType.EVCharger:
+        return {
+          maxPowerW: 22000,
+          minPowerW: 1400,
+          efficiency: 0.98
         };
       default:
         return {};
@@ -200,6 +212,49 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           </>
         );
 
+      case DeviceType.EV:
+        return (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="form-group">
+                <label className="form-label">Battery Capacity (kWh)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).batteryCapacityKwh || ''}
+                  onChange={(e) => handleConfigChange('batteryCapacityKwh', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Max Charge Power (W)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).maxChargePowerW || ''}
+                  onChange={(e) => handleConfigChange('maxChargePowerW', parseInt(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Efficiency</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).efficiency || ''}
+                  onChange={(e) => handleConfigChange('efficiency', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  required
+                />
+              </div>
+            </div>
+          </>
+        );
+
       case DeviceType.Appliance:
         return (
           <>
@@ -321,6 +376,49 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           </>
         );
 
+      case DeviceType.EVCharger:
+        return (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="form-group">
+                <label className="form-label">Max Power (W)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).maxPowerW || ''}
+                  onChange={(e) => handleConfigChange('maxPowerW', parseInt(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Min Power (W)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).minPowerW || ''}
+                  onChange={(e) => handleConfigChange('minPowerW', parseInt(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Efficiency</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).efficiency || ''}
+                  onChange={(e) => handleConfigChange('efficiency', parseFloat(e.target.value) || 0)}
+                  className="form-input"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  required
+                />
+              </div>
+            </div>
+          </>
+        );
+
       default:
         return null;
     }
@@ -393,6 +491,8 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
               >
                 <option value={DeviceType.SolarInverter}>Solar Inverter</option>
                 <option value={DeviceType.Battery}>Battery</option>
+                <option value={DeviceType.EV}>EV</option>
+                <option value={DeviceType.EVCharger}>EV Charger</option>
                 <option value={DeviceType.Appliance}>Smart Appliance</option>
                 <option value={DeviceType.Meter}>Smart Meter</option>
               <option value={DeviceType.HotWaterStorage}>Hot Water Storage</option>
