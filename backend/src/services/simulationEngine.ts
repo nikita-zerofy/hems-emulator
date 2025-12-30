@@ -16,6 +16,10 @@ import {
   MeterState,
   HotWaterStorageState,
   HotWaterStorageConfig,
+  EVConfig,
+  EVState,
+  EVChargerConfig,
+  EVChargerState,
   SimulationUpdate,
   Dwelling
 } from '../types';
@@ -152,7 +156,9 @@ export class SimulationEngine {
     // Calculate household load (appliances + hot water + phantom load)
     const householdLoadW = this.calculateHouseholdLoad(
       devicesByType.appliance,
-      devicesByType.hotWaterStorage
+      devicesByType.hotWaterStorage,
+      devicesByType.ev,
+      devicesByType.evCharger
     );
 
     // Execute energy flow logic
@@ -208,7 +214,12 @@ export class SimulationEngine {
   /**
    * Calculate total household load from appliances
    */
-  private calculateHouseholdLoad(appliances: Device[], hotWaterStorages: Device[] = []): number {
+  private calculateHouseholdLoad(
+    appliances: Device[],
+    hotWaterStorages: Device[] = [],
+    evs: Device[] = [],
+    evChargers: Device[] = []
+  ): number {
     let totalLoadW = 0;
 
     // Sum power from all "on" appliances
@@ -225,6 +236,22 @@ export class SimulationEngine {
       const config = storage.config as HotWaterStorageConfig;
       if (state.isOnline && state.isHotWaterBoostOn) {
         totalLoadW += config.heatingPowerW;
+      }
+    }
+
+    // Add EV charging load
+    for (const ev of evs) {
+      const state = ev.state as EVState;
+      if (state.isOnline && state.isCharging && state.isPluggedIn) {
+        totalLoadW += Math.max(0, state.powerW);
+      }
+    }
+
+    // Add EV charger load
+    for (const charger of evChargers) {
+      const state = charger.state as EVChargerState;
+      if (state.isOnline && state.isCharging) {
+        totalLoadW += Math.max(0, state.powerW);
       }
     }
 
@@ -494,6 +521,53 @@ export class SimulationEngine {
       updates.push({deviceId: appliance.deviceId, state: newState});
     }
 
+    // Update EVs
+    for (const ev of devicesByType.ev) {
+      const config = ev.config as EVConfig;
+      const currentState = ev.state as EVState;
+
+      const intervalHours = this.simulationIntervalMs / 1000 / 3600;
+      const targetPowerW = currentState.isCharging && currentState.isPluggedIn && currentState.isOnline
+        ? Math.min(config.maxChargePowerW, Math.max(0, currentState.powerW || config.maxChargePowerW))
+        : 0;
+
+      const addedEnergyKwh = (targetPowerW / 1000) * intervalHours * config.efficiency;
+      const newBatteryLevel = Math.max(
+        0,
+        Math.min(1, currentState.batteryLevel + addedEnergyKwh / config.batteryCapacityKwh)
+      );
+
+      const newState: EVState = {
+        ...currentState,
+        powerW: targetPowerW,
+        batteryLevel: Math.round(newBatteryLevel * 1000) / 1000,
+        energyTodayKwh: this.updateDailyEnergy(currentState.energyTodayKwh, targetPowerW),
+        isCharging: currentState.isCharging && currentState.isPluggedIn && targetPowerW > 0
+      };
+
+      updates.push({deviceId: ev.deviceId, state: newState});
+    }
+
+    // Update EV chargers
+    for (const charger of devicesByType.evCharger) {
+      const config = charger.config as EVChargerConfig;
+      const currentState = charger.state as EVChargerState;
+
+      const targetPower = currentState.targetPowerW ?? config.maxPowerW;
+      const clampedPower = Math.max(config.minPowerW, Math.min(config.maxPowerW, targetPower));
+      const powerW = currentState.isCharging && currentState.isOnline ? clampedPower : 0;
+
+      const newState: EVChargerState = {
+        ...currentState,
+        powerW,
+        targetPowerW: clampedPower,
+        isCharging: currentState.isCharging && powerW > 0,
+        energyTodayKwh: this.updateDailyEnergy(currentState.energyTodayKwh, powerW)
+      };
+
+      updates.push({deviceId: charger.deviceId, state: newState});
+    }
+
     // Update hot water storage
     for (const storage of devicesByType.hotWaterStorage) {
       const currentState = storage.state as HotWaterStorageState;
@@ -569,7 +643,9 @@ export class SimulationEngine {
       battery: [],
       appliance: [],
       meter: [],
-      hotWaterStorage: []
+      hotWaterStorage: [],
+      ev: [],
+      evCharger: []
     };
 
     for (const device of devices) {
@@ -588,6 +664,12 @@ export class SimulationEngine {
           break;
         case DeviceType.HotWaterStorage:
           grouped.hotWaterStorage.push(device);
+          break;
+        case DeviceType.EV:
+          grouped.ev.push(device);
+          break;
+        case DeviceType.EVCharger:
+          grouped.evCharger.push(device);
           break;
       }
     }
@@ -648,6 +730,8 @@ type DevicesByType = {
   appliance: Device[];
   meter: Device[];
   hotWaterStorage: Device[];
+  ev: Device[];
+  evCharger: Device[];
 };
 
 type EnergyFlows = {

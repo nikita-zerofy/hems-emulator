@@ -14,7 +14,8 @@ import {
   ZerofyDeviceDetails,
   ZerofyDeviceList,
   ZerofyDeviceStatus,
-  ZerofyHotWaterControl
+  ZerofyHotWaterControl,
+  ZerofyEVChargerControl
 } from '../types/zerofy';
 import {
   ApplianceControlCommand,
@@ -25,7 +26,9 @@ import {
   DeviceType,
   MeterState,
   SolarInverterState,
-  HotWaterStorageState
+  HotWaterStorageState,
+  EVState,
+  EVChargerState
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -205,6 +208,8 @@ export class ZerofyService {
     let waterTemperatureC: number | undefined = undefined;
     let targetTemperatureC: number | undefined = undefined;
     let isHotWaterBoostOn: boolean | undefined = undefined;
+    let isCharging: boolean | undefined = undefined;
+    let targetPowerW: number | undefined = undefined;
 
     // Extract power and energy based on device type
     switch (device.deviceType) {
@@ -243,6 +248,22 @@ export class ZerofyService {
         isHotWaterBoostOn = state.isHotWaterBoostOn;
         break;
       }
+      case DeviceType.EV: {
+        const state = device.state as EVState;
+        power = state.powerW;
+        energy = state.energyTodayKwh;
+        batteryLevel = state.batteryLevel * 100;
+        isCharging = state.isCharging;
+        break;
+      }
+      case DeviceType.EVCharger: {
+        const state = device.state as EVChargerState;
+        power = state.powerW;
+        energy = state.energyTodayKwh;
+        isCharging = state.isCharging;
+        targetPowerW = state.targetPowerW;
+        break;
+      }
     }
 
     return {
@@ -256,6 +277,8 @@ export class ZerofyService {
       waterTemperatureC,
       targetTemperatureC,
       isHotWaterBoostOn,
+      isCharging,
+      targetPowerW,
       lastUpdate: device.updatedAt.toString(),
       metadata: {
         deviceType: device.deviceType,
@@ -342,6 +365,27 @@ export class ZerofyService {
     }
 
     await DeviceService.controlHotWaterStorage(deviceId, control);
+  }
+
+  /**
+   * Control EV charger for Zerofy app
+   */
+  static async controlEVCharger(deviceId: string, userId: string, control: ZerofyEVChargerControl): Promise<void> {
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    if (device.deviceType !== DeviceType.EVCharger) {
+      throw new Error('Device is not an EV charger');
+    }
+
+    await DeviceService.controlEVCharger(deviceId, control);
   }
 
   /**

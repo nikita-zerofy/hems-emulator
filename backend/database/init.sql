@@ -24,7 +24,7 @@ CREATE TABLE dwellings (
 CREATE TABLE devices (
     device_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     dwelling_id UUID NOT NULL REFERENCES dwellings(dwelling_id) ON DELETE CASCADE,
-    device_type VARCHAR(50) NOT NULL CHECK (device_type IN ('solarInverter', 'meter', 'battery', 'appliance', 'hotWaterStorage')),
+    device_type VARCHAR(50) NOT NULL CHECK (device_type IN ('solarInverter', 'meter', 'battery', 'appliance', 'hotWaterStorage', 'ev', 'evCharger')),
     name VARCHAR(255),
     config JSONB NOT NULL DEFAULT '{}',
     state JSONB NOT NULL DEFAULT '{}',

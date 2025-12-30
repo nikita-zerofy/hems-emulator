@@ -1,18 +1,29 @@
-import pino from 'pino';
-import {createGcpLoggingPinoConfig} from '@google-cloud/pino-logging-gcp-config';
+import pino from "pino";
+import { createGcpLoggingPinoConfig } from "@google-cloud/pino-logging-gcp-config";
 
-const logLevel = 'trace';
-
-export const logger = pino(
-  createGcpLoggingPinoConfig(
-    {
-      serviceContext: {
-        service: 'zerofy-emulatior',
-        version: '1.0.0',
-      },
+const logLevel = "trace";
+const isDev = process.env.NODE_ENV !== "production";
+const gcpTransport = createGcpLoggingPinoConfig(
+  {
+    serviceContext: {
+      service: "zerofy-emulatior",
+      version: "1.0.0",
     },
-    {
-      level: logLevel,
+  },
+  {
+    level: logLevel,
+  }
+) as pino.LoggerOptions<string, boolean>;
+const transports = isDev
+  ? {
+      transport: {
+        target: "pino-pretty",
+        options: {
+          colorize: true,
+          translateTime: "SYS:standard",
+          ignore: "pid,hostname",
+        },
+      },
     }
-  ) as pino.LoggerOptions<string, boolean>
-);
+  : gcpTransport;
+export const logger = pino(transports);
