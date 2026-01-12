@@ -53,7 +53,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--port'
-      - '80'
+      - '8080'
       - '--memory'
       - '512Mi'
       - '--cpu'
