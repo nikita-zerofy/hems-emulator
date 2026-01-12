@@ -5,9 +5,9 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/hems-backend:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/${_BACKEND_SERVICE_NAME}:$COMMIT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/hems-backend:latest'
+      - 'gcr.io/$PROJECT_ID/${_BACKEND_SERVICE_NAME}:latest'
       - './backend'
     id: 'build-backend'
 
@@ -18,9 +18,9 @@ steps:
       - '-f'
       - './frontend/Dockerfile.prod'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/hems-frontend:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/${_FRONTEND_SERVICE_NAME}:$COMMIT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/hems-frontend:latest'
+      - 'gcr.io/$PROJECT_ID/${_FRONTEND_SERVICE_NAME}:latest'
       - '--build-arg'
       - 'VITE_API_URL=https://hems-backend-${_CLOUD_RUN_SUFFIX}-uc.a.run.app'
       - '--build-arg'
@@ -30,12 +30,12 @@ steps:
 
   # Push backend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/hems-backend:$COMMIT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/${_BACKEND_SERVICE_NAME}:$COMMIT_SHA']
     id: 'push-backend'
 
   # Push frontend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/hems-frontend:$COMMIT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/${_FRONTEND_SERVICE_NAME}:$COMMIT_SHA']
     id: 'push-frontend'
 
   # Deploy frontend to Cloud Run (needed to discover FRONTEND_URL for backend CORS)
@@ -44,9 +44,9 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'hems-frontend'
+      - '${_FRONTEND_SERVICE_NAME}'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/hems-frontend:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/${_FRONTEND_SERVICE_NAME}:$COMMIT_SHA'
       - '--region'
       - 'europe-west1'
       - '--platform'
@@ -69,7 +69,7 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        gcloud run services describe hems-frontend \
+        gcloud run services describe "${_FRONTEND_SERVICE_NAME}" \
           --region=europe-west1 \
           --platform=managed \
           --format='value(status.url)' > /workspace/frontend_url.txt
@@ -83,8 +83,8 @@ steps:
       - |
         set -euo pipefail
         FRONTEND_URL="$(cat /workspace/frontend_url.txt)"
-        gcloud run deploy hems-backend \
-          --image "gcr.io/$PROJECT_ID/hems-backend:$COMMIT_SHA" \
+        gcloud run deploy "${_BACKEND_SERVICE_NAME}" \
+          --image "gcr.io/$PROJECT_ID/${_BACKEND_SERVICE_NAME}:$COMMIT_SHA" \
           --region "europe-west1" \
           --platform "managed" \
           --allow-unauthenticated \
@@ -98,6 +98,8 @@ steps:
 
 # Substitution variables (set these in Cloud Build trigger)
 substitutions:
+  _BACKEND_SERVICE_NAME: 'emulator'
+  _FRONTEND_SERVICE_NAME: 'emulator-ui'
   _CLOUD_RUN_SUFFIX: 'dev'  # Change per environment
   _JWT_SECRET: 'your-secure-jwt-secret'
   _SIMULATION_INTERVAL_MS: '' # Optional (e.g. 1000). Empty means default in app.
