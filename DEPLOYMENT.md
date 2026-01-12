@@ -160,6 +160,25 @@ Use the included `docker-compose.prod.yml` which includes PostgreSQL.
 | `DATABASE_URL` | Database connection | SQLite | No |
 | `JWT_SECRET` | JWT signing secret | Generated | **Yes** |
 | `CORS_ORIGIN` | Frontend URL | `*` | No |
+#### Recommended: store credentials in Secret Manager and bind them during deploy
+
+If you're deploying via `cloudbuild.yaml`, you can bind `DATABASE_URL` from Secret Manager using `gcloud run deploy --set-secrets`. This avoids putting credentials in the Cloud Run UI and keeps them out of your repo.
+
+One-time setup:
+
+```bash
+# Create secret (edit value)
+echo -n "postgresql://user:pass@host:5432/dbname" | gcloud secrets create emulator_database_url --data-file=-
+
+# Grant Cloud Run runtime service account permission to read the secrets
+PROJECT_ID="$(gcloud config get-value project)"
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")"
+RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+gcloud secrets add-iam-policy-binding emulator_database_url \
+  --member="serviceAccount:${RUNTIME_SA}" \
+  --role="roles/secretmanager.secretAccessor"
+```
 
 ### Frontend Environment Variables
 
@@ -274,7 +293,7 @@ The included `cloudbuild.yaml` provides automatic deployment:
 2. **Create trigger** for main branch
 3. **Set substitution variables**:
    - `_JWT_SECRET`: Your JWT secret
-   - `_DATABASE_URL`: Database connection string
+   - `_EMULATOR_DATABASE_URL_SECRET`: Secret Manager reference for `DATABASE_URL` (e.g. `projects/$PROJECT_ID/secrets/emulator_database_url:latest`)
 
 ## 🌐 Custom Domains
 
