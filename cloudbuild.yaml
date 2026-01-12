@@ -53,7 +53,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--port'
-      - '80'
+      - '8080'
       - '--memory'
       - '512Mi'
       - '--cpu'
@@ -92,7 +92,7 @@ steps:
           --memory "1Gi" \
           --cpu "1" \
           --max-instances "1" \
-          --set-env-vars "NODE_ENV=production,JWT_SECRET=${_JWT_SECRET},FRONTEND_URL=${FRONTEND_URL},SIMULATION_INTERVAL_MS=${_SIMULATION_INTERVAL_MS}" \
+          --set-env-vars "NODE_ENV=production,JWT_SECRET=${_JWT_SECRET},FRONTEND_URL=$$FRONTEND_URL" \
           --set-secrets "DATABASE_URL=${_EMULATOR_DATABASE_URL_SECRET}"
     id: 'deploy-backend'
 
