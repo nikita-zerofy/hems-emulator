@@ -181,6 +181,31 @@ Authorization: Bearer [access_token]
 }
 ```
 
+**EV Details Notes:**
+- EV `configuration` now exposes `drivingSchedules` as an array of recurring daily windows
+- EV `configuration.drivingDischargePowerW` remains a single EV-wide discharge value shared by all schedules
+- EV responses include `isEvAtHome`, which is `false` while any configured driving schedule is active
+
+**Example EV Configuration:**
+```json
+{
+  "batteryCapacityKwh": 60,
+  "maxChargePowerW": 11000,
+  "efficiency": 0.92,
+  "drivingSchedules": [
+    {
+      "startTime": "08:00",
+      "endTime": "09:00"
+    },
+    {
+      "startTime": "17:30",
+      "endTime": "18:15"
+    }
+  ],
+  "drivingDischargePowerW": 8000
+}
+```
+
 ### Get Device Status
 
 **Endpoint:** `GET /api/zerofy/devices/{deviceId}/status`
@@ -209,6 +234,36 @@ Authorization: Bearer [access_token]
     "lastUpdate": "2024-01-15T10:30:00Z",
     "metadata": {
       "deviceType": "solarInverter",
+      "simulated": true
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+**EV Status Notes:**
+- EV `status`, `details`, and `list` payloads may include `isEvAtHome`
+- `isEvAtHome` is derived from the configured driving schedules and the dwelling timezone
+
+**EV Status Example:**
+```json
+{
+  "success": true,
+  "data": {
+    "deviceId": "dev_ev_123456789",
+    "deviceType": "ev",
+    "status": "online",
+    "power": -7000,
+    "energy": 12.4,
+    "batteryLevel": 62,
+    "isCharging": false,
+    "isEvAtHome": false,
+    "lastUpdate": "2024-01-15T10:30:00Z",
+    "metadata": {
+      "deviceType": "ev",
       "simulated": true
     }
   },

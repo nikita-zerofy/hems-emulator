@@ -17,11 +17,13 @@ import {
   HotWaterStorageState,
   HotWaterStorageConfig,
   EVConfig,
+  EVDrivingSchedule,
   EVState,
   EVChargerConfig,
   EVChargerState,
   SimulationUpdate,
-  Dwelling
+  Dwelling,
+  normalizeEVConfig
 } from '../types';
 
 export class SimulationEngine {
@@ -244,7 +246,7 @@ export class SimulationEngine {
 
     // Add EV charging load
     for (const ev of evs) {
-      const config = ev.config as EVConfig;
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const state = ev.state as EVState;
       if (this.isDrivingNow(config, timeZone)) {
         continue;
@@ -532,7 +534,7 @@ export class SimulationEngine {
 
     // Update EVs
     for (const ev of devicesByType.ev) {
-      const config = ev.config as EVConfig;
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const currentState = ev.state as EVState;
       const isDriving = this.isDrivingNow(config, timeZone);
 
@@ -664,25 +666,14 @@ export class SimulationEngine {
    * Check whether the EV should be driving in the dwelling's local time.
    */
   private isDrivingNow(config: EVConfig, timeZone: string): boolean {
-    if (!config.drivingStartTime || !config.drivingEndTime || !config.drivingDischargePowerW) {
-      return false;
-    }
-
-    const startMinutes = this.timeToMinutes(config.drivingStartTime);
-    const endMinutes = this.timeToMinutes(config.drivingEndTime);
-
-    if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) {
+    if (!config.drivingDischargePowerW || config.drivingDischargePowerW <= 0) {
       return false;
     }
 
     const now = DateTime.now().setZone(timeZone);
     const currentMinutes = now.hour * 60 + now.minute;
 
-    if (startMinutes < endMinutes) {
-      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    }
-
-    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    return config.drivingSchedules.some((schedule) => this.isDrivingInSchedule(schedule, currentMinutes));
   }
 
   /**
@@ -705,6 +696,24 @@ export class SimulationEngine {
     }
 
     return hours * 60 + minutes;
+  }
+
+  /**
+   * Check whether a specific schedule is active at the current minute.
+   */
+  private isDrivingInSchedule(schedule: EVDrivingSchedule, currentMinutes: number): boolean {
+    const startMinutes = this.timeToMinutes(schedule.startTime);
+    const endMinutes = this.timeToMinutes(schedule.endTime);
+
+    if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) {
+      return false;
+    }
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    }
+
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
   }
 
   /**

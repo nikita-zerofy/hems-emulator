@@ -17,6 +17,7 @@ export const ZerofyDeviceStatusSchema = z.object({
   power: z.number(), // Current power in watts
   energy: z.number(), // Energy today in kWh
   batteryLevel: z.number(),
+  isEvAtHome: z.boolean().optional(),
   isOn: z.boolean().optional(), // On/off state for appliances
   waterTemperatureC: z.number().optional(),
   targetTemperatureC: z.number().optional(),
@@ -35,6 +36,7 @@ export const ZerofyDeviceListSchema = z.object({
   deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
+  isEvAtHome: z.boolean().optional(),
   location: z.object({
     dwellingId: z.string(),
     dwellingName: z.string().optional()
@@ -51,6 +53,7 @@ export const ZerofyDeviceDetailsSchema = z.object({
   deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
+  isEvAtHome: z.boolean().optional(),
   location: z.object({
     dwellingId: z.string(),
     dwellingName: z.string().optional(),

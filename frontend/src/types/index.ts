@@ -60,12 +60,16 @@ export interface BatteryConfig {
   maxSoc: number;
 }
 
+export type EVDrivingSchedule = {
+  startTime: string;
+  endTime: string;
+};
+
 export interface EVConfig {
   batteryCapacityKwh: number;
   maxChargePowerW: number;
   efficiency: number;
-  drivingStartTime?: string;
-  drivingEndTime?: string;
+  drivingSchedules?: EVDrivingSchedule[];
   drivingDischargePowerW?: number;
 }
 

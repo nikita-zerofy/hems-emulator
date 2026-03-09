@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { apiClient } from '../utils/api';
-import { Device, DeviceType, CreateDeviceForm } from '../types';
+import { Device, DeviceType, CreateDeviceForm, EVConfig, EVDrivingSchedule } from '../types';
+
+const DefaultEVDrivingSchedule: EVDrivingSchedule = {
+  startTime: '08:00',
+  endTime: '09:00'
+};
 
 interface CreateDeviceModalProps {
   dwellingId: string;
@@ -54,8 +59,7 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           batteryCapacityKwh: 60,
           maxChargePowerW: 11000,
           efficiency: 0.92,
-          drivingStartTime: '08:00',
-          drivingEndTime: '09:00',
+          drivingSchedules: [DefaultEVDrivingSchedule],
           drivingDischargePowerW: 8000
         };
       case DeviceType.Appliance:
@@ -95,6 +99,58 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
         [key]: value
       }
     }));
+  };
+
+  const handleEVScheduleChange = (
+    scheduleIndex: number,
+    key: keyof EVDrivingSchedule,
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const config = prev.config as unknown as EVConfig;
+      const drivingSchedules = (config.drivingSchedules ?? []).map((schedule, index) =>
+        index === scheduleIndex ? {...schedule, [key]: value} : schedule
+      );
+
+      return {
+        ...prev,
+        config: {
+          ...config,
+          drivingSchedules
+        }
+      };
+    });
+  };
+
+  const handleAddEVSchedule = () => {
+    setFormData((prev) => {
+      const config = prev.config as unknown as EVConfig;
+
+      return {
+        ...prev,
+        config: {
+          ...config,
+          drivingSchedules: [...(config.drivingSchedules ?? []), {...DefaultEVDrivingSchedule}]
+        }
+      };
+    });
+  };
+
+  const handleRemoveEVSchedule = (scheduleIndex: number) => {
+    setFormData((prev) => {
+      const config = prev.config as unknown as EVConfig;
+      const currentSchedules = config.drivingSchedules ?? [];
+
+      return {
+        ...prev,
+        config: {
+          ...config,
+          drivingSchedules: currentSchedules.length > 1
+            ? currentSchedules.filter((_, index) => index !== scheduleIndex)
+            : currentSchedules
+        }
+      };
+    });
   };
 
   const renderConfigFields = () => {
@@ -215,7 +271,10 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           </>
         );
 
-      case DeviceType.EV:
+      case DeviceType.EV: {
+        const config = formData.config as unknown as EVConfig;
+        const drivingSchedules = config.drivingSchedules ?? [DefaultEVDrivingSchedule];
+
         return (
           <>
             <div className="grid grid-cols-3 gap-4">
@@ -245,7 +304,7 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                 <label className="form-label">Efficiency</label>
                 <input
                   type="number"
-                  value={(formData.config as any).efficiency || ''}
+                  value={config.efficiency ?? ''}
                   onChange={(e) => handleConfigChange('efficiency', parseFloat(e.target.value) || 0)}
                   className="form-input"
                   step="0.01"
@@ -255,41 +314,67 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="form-group">
-                <label className="form-label">Driving Start</label>
-                <input
-                  type="time"
-                  value={(formData.config as any).drivingStartTime || ''}
-                  onChange={(e) => handleConfigChange('drivingStartTime', e.target.value)}
-                  className="form-input"
-                  required
-                />
+            {drivingSchedules.map((schedule, scheduleIndex) => (
+              <div className="grid grid-cols-3 gap-4" key={`${scheduleIndex}-${schedule.startTime}-${schedule.endTime}`}>
+                <div className="form-group">
+                  <label className="form-label">Driving Start</label>
+                  <input
+                    type="time"
+                    value={schedule.startTime}
+                    onChange={(e) => handleEVScheduleChange(scheduleIndex, 'startTime', e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Driving End</label>
+                  <input
+                    type="time"
+                    value={schedule.endTime}
+                    onChange={(e) => handleEVScheduleChange(scheduleIndex, 'endTime', e.target.value)}
+                    className="form-input"
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{display: 'flex', alignItems: 'end'}}>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveEVSchedule(scheduleIndex)}
+                    className="btn btn-secondary"
+                    disabled={drivingSchedules.length <= 1}
+                    style={{width: '100%'}}
+                  >
+                    Remove Schedule
+                  </button>
+                </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Driving End</label>
-                <input
-                  type="time"
-                  value={(formData.config as any).drivingEndTime || ''}
-                  onChange={(e) => handleConfigChange('drivingEndTime', e.target.value)}
-                  className="form-input"
-                  required
-                />
-              </div>
+            ))}
+            <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
                 <label className="form-label">Driving Discharge (W)</label>
                 <input
                   type="number"
-                  value={(formData.config as any).drivingDischargePowerW || ''}
+                  value={config.drivingDischargePowerW ?? ''}
                   onChange={(e) => handleConfigChange('drivingDischargePowerW', parseInt(e.target.value) || 0)}
                   className="form-input"
                   min="0"
                   required
                 />
               </div>
+              <div className="form-group" style={{display: 'flex', alignItems: 'end'}}>
+                <button
+                  type="button"
+                  onClick={handleAddEVSchedule}
+                  className="btn btn-secondary"
+                  style={{width: '100%'}}
+                >
+                  Add Driving Schedule
+                </button>
+              </div>
             </div>
           </>
         );
+      }
 
       case DeviceType.Appliance:
         return (

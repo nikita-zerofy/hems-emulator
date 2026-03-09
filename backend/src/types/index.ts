@@ -59,14 +59,57 @@ export const BatteryConfigSchema = z.object({
   maxSoc: z.number().min(0).max(1).default(1.0)   // Maximum state of charge
 });
 
-export const EVConfigSchema = z.object({
+const TimeOfDaySchema = z.string().regex(/^\d{2}:\d{2}$/);
+
+export const EVDrivingScheduleSchema = z.object({
+  startTime: TimeOfDaySchema,
+  endTime: TimeOfDaySchema
+});
+
+const EVBaseConfigSchema = z.object({
   batteryCapacityKwh: z.number().positive(),
   maxChargePowerW: z.number().positive(),
-  efficiency: z.number().min(0).max(1).default(0.92),
-  drivingStartTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  drivingEndTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  efficiency: z.number().min(0).max(1).default(0.92)
+});
+
+const EVNormalizedConfigSchema = EVBaseConfigSchema.extend({
+  drivingSchedules: z.array(EVDrivingScheduleSchema).default([]),
   drivingDischargePowerW: z.number().min(0).optional()
 });
+
+const EVLegacyConfigSchema = EVBaseConfigSchema.extend({
+  drivingStartTime: TimeOfDaySchema.optional(),
+  drivingEndTime: TimeOfDaySchema.optional(),
+  drivingDischargePowerW: z.number().min(0).optional()
+});
+
+type EVNormalizedConfig = z.infer<typeof EVNormalizedConfigSchema>;
+type EVLegacyConfig = z.infer<typeof EVLegacyConfigSchema>;
+
+export const normalizeEVConfig = (config: EVNormalizedConfig | EVLegacyConfig): EVNormalizedConfig => {
+  if ('drivingSchedules' in config) {
+    return {
+      ...config,
+      drivingSchedules: config.drivingSchedules ?? []
+    };
+  }
+
+  const drivingSchedules = config.drivingStartTime && config.drivingEndTime
+    ? [{startTime: config.drivingStartTime, endTime: config.drivingEndTime}]
+    : [];
+
+  return {
+    batteryCapacityKwh: config.batteryCapacityKwh,
+    maxChargePowerW: config.maxChargePowerW,
+    efficiency: config.efficiency,
+    drivingSchedules,
+    drivingDischargePowerW: config.drivingDischargePowerW
+  };
+};
+
+export const EVConfigSchema = z
+  .union([EVNormalizedConfigSchema, EVLegacyConfigSchema])
+  .transform(normalizeEVConfig);
 
 export const ApplianceConfigSchema = z.object({
   name: z.string(),
@@ -211,6 +254,7 @@ export type MeterState = z.infer<typeof MeterStateSchema>;
 export type HotWaterStorageConfig = z.infer<typeof HotWaterStorageConfigSchema>;
 export type HotWaterStorageState = z.infer<typeof HotWaterStorageStateSchema>;
 export type HotWaterStorageControlCommand = z.infer<typeof HotWaterStorageControlCommandSchema>;
+export type EVDrivingSchedule = z.infer<typeof EVDrivingScheduleSchema>;
 export type EVConfig = z.infer<typeof EVConfigSchema>;
 export type EVState = z.infer<typeof EVStateSchema>;
 export type EVControlAction = z.infer<typeof EVControlActionSchema>;
