@@ -12,6 +12,7 @@ import {
   ApplianceControlCommand,
   HotWaterStorageState,
   HotWaterStorageControlCommand,
+  EVControlCommand,
   SolarInverterConfigSchema,
   SolarInverterStateSchema,
   BatteryConfigSchema,
@@ -482,6 +483,42 @@ export class DeviceService {
       ...currentState,
       isHotWaterBoostOn: command.boostOn,
       targetTemperatureC: clampedTarget
+    };
+
+    await query(
+      'UPDATE devices SET state = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2',
+      [JSON.stringify(updatedState), deviceId]
+    );
+  }
+
+  /**
+   * Control EV charging start/stop state
+   */
+  static async controlEV(deviceId: string, command: EVControlCommand): Promise<void> {
+    const deviceResult = await query(
+      'SELECT device_id, device_type, state, config FROM devices WHERE device_id = $1',
+      [deviceId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      throw new Error('Device not found');
+    }
+
+    const device = deviceResult.rows[0];
+    if (device.device_type !== DeviceType.EV) {
+      throw new Error('Device is not an EV');
+    }
+
+    const currentState = EVStateSchema.parse(device.state);
+    const config = EVConfigSchema.parse(device.config);
+    const startPowerW = currentState.isPluggedIn && currentState.isOnline
+      ? Math.min(config.maxChargePowerW, Math.max(0, currentState.powerW || config.maxChargePowerW))
+      : 0;
+
+    const updatedState: EVState = {
+      ...currentState,
+      isCharging: command.action === 'start',
+      powerW: command.action === 'start' ? startPowerW : 0
     };
 
     await query(

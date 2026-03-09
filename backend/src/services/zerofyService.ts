@@ -14,6 +14,7 @@ import {
   ZerofyDeviceDetails,
   ZerofyDeviceList,
   ZerofyDeviceStatus,
+  ZerofyEVControl,
   ZerofyHotWaterControl,
   ZerofyEVChargerControl
 } from '../types/zerofy';
@@ -365,6 +366,27 @@ export class ZerofyService {
     }
 
     await DeviceService.controlHotWaterStorage(deviceId, control);
+  }
+
+  /**
+   * Control EV charging for Zerofy app
+   */
+  static async controlEV(deviceId: string, userId: string, control: ZerofyEVControl): Promise<void> {
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    if (device.deviceType !== DeviceType.EV) {
+      throw new Error('Device is not an EV');
+    }
+
+    await DeviceService.controlEV(deviceId, control);
   }
 
   /**

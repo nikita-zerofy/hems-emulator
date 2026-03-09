@@ -119,7 +119,7 @@ export const DEVICE_CAPABILITIES = {
   meter: ['power_monitoring', 'energy_monitoring', 'bidirectional_flow'],
   appliance: ['power_control', 'energy_monitoring', 'remote_control'],
   hotWaterStorage: ['water_heating', 'boost_control', 'temperature_monitoring'],
-  ev: ['soc_monitoring', 'charging_status', 'energy_monitoring'],
+  ev: ['soc_monitoring', 'charging_status', 'charging_control', 'energy_monitoring'],
   evCharger: ['charging_control', 'power_control', 'energy_monitoring']
 } as const;
 
@@ -145,6 +145,15 @@ export const ZerofyHotWaterControlSchema = z.object({
 });
 
 export type ZerofyHotWaterControl = z.infer<typeof ZerofyHotWaterControlSchema>;
+
+// Zerofy EV Control
+export const ZerofyEVControlActionSchema = z.enum(['start', 'stop']);
+
+export const ZerofyEVControlSchema = z.object({
+  action: ZerofyEVControlActionSchema
+});
+
+export type ZerofyEVControl = z.infer<typeof ZerofyEVControlSchema>;
 
 // Zerofy EV Charger Control
 export const ZerofyEVChargerControlSchema = z.object({

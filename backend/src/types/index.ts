@@ -192,6 +192,12 @@ export const HotWaterStorageControlCommandSchema = z.object({
   targetTemperatureC: z.number().optional()
 });
 
+export const EVControlActionSchema = z.enum(['start', 'stop']);
+
+export const EVControlCommandSchema = z.object({
+  action: EVControlActionSchema
+});
+
 export const EVChargerControlCommandSchema = z.object({
   isCharging: z.boolean(),
   targetPowerW: z.number().optional()
@@ -204,6 +210,8 @@ export type HotWaterStorageState = z.infer<typeof HotWaterStorageStateSchema>;
 export type HotWaterStorageControlCommand = z.infer<typeof HotWaterStorageControlCommandSchema>;
 export type EVConfig = z.infer<typeof EVConfigSchema>;
 export type EVState = z.infer<typeof EVStateSchema>;
+export type EVControlAction = z.infer<typeof EVControlActionSchema>;
+export type EVControlCommand = z.infer<typeof EVControlCommandSchema>;
 export type EVChargerConfig = z.infer<typeof EVChargerConfigSchema>;
 export type EVChargerState = z.infer<typeof EVChargerStateSchema>;
 export type EVChargerControlCommand = z.infer<typeof EVChargerControlCommandSchema>;
