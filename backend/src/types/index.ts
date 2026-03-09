@@ -62,7 +62,10 @@ export const BatteryConfigSchema = z.object({
 export const EVConfigSchema = z.object({
   batteryCapacityKwh: z.number().positive(),
   maxChargePowerW: z.number().positive(),
-  efficiency: z.number().min(0).max(1).default(0.92)
+  efficiency: z.number().min(0).max(1).default(0.92),
+  drivingStartTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  drivingEndTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  drivingDischargePowerW: z.number().min(0).optional()
 });
 
 export const ApplianceConfigSchema = z.object({
