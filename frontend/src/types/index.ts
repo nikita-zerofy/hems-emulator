@@ -214,6 +214,10 @@ export interface HotWaterStorageControlCommand {
   targetTemperatureC?: number;
 }
 
+export interface EVControlCommand {
+  action: 'start' | 'stop';
+}
+
 export interface EVChargerControlCommand {
   isCharging: boolean;
   targetPowerW?: number;

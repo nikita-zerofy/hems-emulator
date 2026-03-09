@@ -15,6 +15,7 @@ import {
   HotWaterStorageState,
   HotWaterStorageControlCommand,
   EVState,
+  EVControlCommand,
   EVChargerState,
   EVChargerControlCommand
 } from '../types';
@@ -261,6 +262,21 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       alert(`Hot water boost turned ${boostOn ? 'ON' : 'OFF'}`);
     } catch (err) {
       alert('Failed to control hot water storage: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
+  const handleEVControl = async (action: 'start' | 'stop') => {
+    try {
+      setControlLoading(true);
+      const command: EVControlCommand = { action };
+      await apiClient.controlEV(currentDevice.deviceId, command);
+      const updated = await apiClient.getDevice(currentDevice.deviceId);
+      setCurrentDevice(updated);
+      alert(`EV charging ${action === 'start' ? 'started' : 'stopped'}`);
+    } catch (err) {
+      alert('Failed to control EV: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setControlLoading(false);
     }
@@ -515,6 +531,72 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
           )}
         </div>
       )}
+
+      {/* EV Controls */}
+      {currentDevice.deviceType === DeviceType.EV && (() => {
+        const state = currentDevice.state as EVState;
+        const canStart = state.isPluggedIn && !state.isCharging;
+        const canStop = state.isCharging;
+
+        return (
+          <div style={{ 
+            marginTop: '1rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid #f3f4f6'
+          }}>
+            <div style={{ 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              marginBottom: '0.5rem',
+              color: '#374151'
+            }}>
+              EV Control
+            </div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.5rem'
+            }}>
+              <button
+                onClick={() => handleEVControl('start')}
+                disabled={controlLoading || !canStart}
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: '0.75rem' }}
+              >
+                {state.isCharging ? 'Charging' : 'Start Charging'}
+              </button>
+              <button
+                onClick={() => handleEVControl('stop')}
+                disabled={controlLoading || !canStop}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.75rem' }}
+              >
+                {state.isCharging ? 'Stop Charging' : 'Stopped'}
+              </button>
+            </div>
+            {!state.isPluggedIn && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#9ca3af'
+              }}>
+                EV must be plugged in to start charging.
+              </div>
+            )}
+            {controlLoading && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#6b7280'
+              }}>
+                Sending command...
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* EV Charger Controls */}
       {currentDevice.deviceType === DeviceType.EVCharger && (
