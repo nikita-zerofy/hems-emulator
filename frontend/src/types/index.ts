@@ -64,6 +64,9 @@ export interface EVConfig {
   batteryCapacityKwh: number;
   maxChargePowerW: number;
   efficiency: number;
+  drivingStartTime?: string;
+  drivingEndTime?: string;
+  drivingDischargePowerW?: number;
 }
 
 export interface ApplianceConfig {

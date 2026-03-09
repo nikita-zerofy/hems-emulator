@@ -53,7 +53,10 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
         return {
           batteryCapacityKwh: 60,
           maxChargePowerW: 11000,
-          efficiency: 0.92
+          efficiency: 0.92,
+          drivingStartTime: '08:00',
+          drivingEndTime: '09:00',
+          drivingDischargePowerW: 8000
         };
       case DeviceType.Appliance:
         return {
@@ -248,6 +251,39 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                   step="0.01"
                   min="0"
                   max="1"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="form-group">
+                <label className="form-label">Driving Start</label>
+                <input
+                  type="time"
+                  value={(formData.config as any).drivingStartTime || ''}
+                  onChange={(e) => handleConfigChange('drivingStartTime', e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Driving End</label>
+                <input
+                  type="time"
+                  value={(formData.config as any).drivingEndTime || ''}
+                  onChange={(e) => handleConfigChange('drivingEndTime', e.target.value)}
+                  className="form-input"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Driving Discharge (W)</label>
+                <input
+                  type="number"
+                  value={(formData.config as any).drivingDischargePowerW || ''}
+                  onChange={(e) => handleConfigChange('drivingDischargePowerW', parseInt(e.target.value) || 0)}
+                  className="form-input"
+                  min="0"
                   required
                 />
               </div>

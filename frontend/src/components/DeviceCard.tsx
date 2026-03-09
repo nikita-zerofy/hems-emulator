@@ -15,6 +15,7 @@ import {
   HotWaterStorageState,
   HotWaterStorageControlCommand,
   EVState,
+  EVConfig,
   EVControlCommand,
   EVChargerState,
   EVChargerControlCommand
@@ -30,10 +31,26 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
   const [loading, setLoading] = useState(false);
   const [controlLoading, setControlLoading] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<Device>(device);
+  const [drivingStartTime, setDrivingStartTime] = useState('');
+  const [drivingEndTime, setDrivingEndTime] = useState('');
+  const [drivingDischargePowerW, setDrivingDischargePowerW] = useState('');
 
   React.useEffect(() => {
     setCurrentDevice(device);
   }, [device]);
+
+  React.useEffect(() => {
+    if (currentDevice.deviceType !== DeviceType.EV) {
+      return;
+    }
+
+    const config = currentDevice.config as EVConfig;
+    setDrivingStartTime(config.drivingStartTime ?? '');
+    setDrivingEndTime(config.drivingEndTime ?? '');
+    setDrivingDischargePowerW(
+      config.drivingDischargePowerW !== undefined ? String(config.drivingDischargePowerW) : ''
+    );
+  }, [currentDevice]);
 
   const getDeviceIcon = () => {
     switch (currentDevice.deviceType) {
@@ -169,6 +186,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       case DeviceType.EV: {
         const state = currentDevice.state as EVState;
+        const status = state.powerW < 0 ? 'Driving' : state.isCharging ? 'Charging' : 'Idle';
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -176,7 +194,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
               <div className="metric-label">Battery</div>
             </div>
             <div className="metric">
-              <div className="metric-value">{state.isCharging ? 'Charging' : 'Idle'}</div>
+              <div className="metric-value">{status}</div>
               <div className="metric-label">Status</div>
             </div>
             <div className="metric">
@@ -277,6 +295,29 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       alert(`EV charging ${action === 'start' ? 'started' : 'stopped'}`);
     } catch (err) {
       alert('Failed to control EV: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
+  const handleEVDrivingScheduleSave = async () => {
+    if (currentDevice.deviceType !== DeviceType.EV) {
+      return;
+    }
+
+    try {
+      setControlLoading(true);
+      const config = currentDevice.config as EVConfig;
+      const updatedDevice = await apiClient.updateDevice(currentDevice.deviceId, {
+        ...config,
+        drivingStartTime,
+        drivingEndTime,
+        drivingDischargePowerW: Number(drivingDischargePowerW)
+      });
+      setCurrentDevice(updatedDevice);
+      alert('EV driving schedule updated');
+    } catch (err) {
+      alert('Failed to update EV driving schedule: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setControlLoading(false);
     }
@@ -534,9 +575,18 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       {/* EV Controls */}
       {currentDevice.deviceType === DeviceType.EV && (() => {
+        const config = currentDevice.config as EVConfig;
         const state = currentDevice.state as EVState;
-        const canStart = state.isPluggedIn && !state.isCharging;
+        const canStart = state.isPluggedIn && !state.isCharging && state.powerW >= 0;
         const canStop = state.isCharging;
+        const isScheduleValid =
+          drivingStartTime !== '' &&
+          drivingEndTime !== '' &&
+          drivingDischargePowerW !== '' &&
+          Number(drivingDischargePowerW) >= 0;
+        const currentSchedule = config.drivingStartTime && config.drivingEndTime && config.drivingDischargePowerW !== undefined
+          ? `${config.drivingStartTime} - ${config.drivingEndTime} at ${config.drivingDischargePowerW}W`
+          : 'Not configured';
 
         return (
           <div style={{ 
@@ -551,6 +601,13 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
               color: '#374151'
             }}>
               EV Control
+            </div>
+            <div style={{ 
+              marginBottom: '0.75rem',
+              fontSize: '0.75rem',
+              color: '#6b7280'
+            }}>
+              Driving schedule: {currentSchedule}
             </div>
             <div style={{ 
               display: 'grid', 
@@ -574,6 +631,46 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
                 {state.isCharging ? 'Stop Charging' : 'Stopped'}
               </button>
             </div>
+            <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.5rem',
+              marginTop: '0.75rem'
+            }}>
+              <input
+                type="time"
+                value={drivingStartTime}
+                onChange={(e) => setDrivingStartTime(e.target.value)}
+                className="form-input"
+                aria-label="Driving start time"
+              />
+              <input
+                type="time"
+                value={drivingEndTime}
+                onChange={(e) => setDrivingEndTime(e.target.value)}
+                className="form-input"
+                aria-label="Driving end time"
+              />
+            </div>
+            <div style={{ marginTop: '0.5rem' }}>
+              <input
+                type="number"
+                value={drivingDischargePowerW}
+                onChange={(e) => setDrivingDischargePowerW(e.target.value)}
+                className="form-input"
+                min="0"
+                placeholder="Driving discharge power (W)"
+                aria-label="Driving discharge power"
+              />
+            </div>
+            <button
+              onClick={handleEVDrivingScheduleSave}
+              disabled={controlLoading || !isScheduleValid}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem', marginTop: '0.5rem', width: '100%' }}
+            >
+              Save Driving Schedule
+            </button>
             {!state.isPluggedIn && (
               <div style={{ 
                 textAlign: 'center', 
@@ -582,6 +679,16 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
                 color: '#9ca3af'
               }}>
                 EV must be plugged in to start charging.
+              </div>
+            )}
+            {state.powerW < 0 && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#9ca3af'
+              }}>
+                Driving session is active, so charging is paused.
               </div>
             )}
             {controlLoading && (
