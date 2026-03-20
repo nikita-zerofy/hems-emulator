@@ -18,12 +18,14 @@ import {
   ZerofyEVChargerControl
 } from '../types/zerofy';
 import {
+  ApplianceConfig,
   ApplianceControlCommand,
   ApplianceState,
   BatteryControlCommand,
   BatteryState,
   Device,
   DeviceType,
+  MeterConfig,
   MeterState,
   SolarInverterState,
   HotWaterStorageState,
@@ -234,9 +236,10 @@ export class ZerofyService {
         break;
       }
       case DeviceType.Meter: {
+        const config = device.config as MeterConfig;
         const state = device.state as MeterState;
         power = state.powerW;
-        energy = state.energyImportTodayKwh;
+        energy = config.role === 'production' ? state.energyExportTodayKwh : state.energyImportTodayKwh;
         break;
       }
       case DeviceType.HotWaterStorage: {
@@ -282,6 +285,11 @@ export class ZerofyService {
       lastUpdate: device.updatedAt.toString(),
       metadata: {
         deviceType: device.deviceType,
+        role: device.deviceType === DeviceType.Meter
+          ? (device.config as MeterConfig).role
+          : device.deviceType === DeviceType.Appliance
+            ? (device.config as ApplianceConfig).role
+            : undefined,
         simulated: true
       }
     };
