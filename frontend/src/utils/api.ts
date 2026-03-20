@@ -13,6 +13,7 @@ import {
   CreateDeviceForm,
   HotWaterStorageControlCommand,
   EVChargerControlCommand,
+  EVControlCommand,
   DeviceHistorySeries,
   DailyEnergySummary
 } from '../types';
@@ -221,6 +222,12 @@ class ApiClient {
   // Hot Water Storage Control
   async controlHotWaterStorage(deviceId: string, command: HotWaterStorageControlCommand): Promise<ApiResponse> {
     const response = await this.client.post(`/devices/${deviceId}/control`, command);
+    return response.data;
+  }
+
+  // EV Control
+  async controlEV(deviceId: string, command: EVControlCommand): Promise<ApiResponse> {
+    const response = await this.client.post(`/devices/${deviceId}/control/ev`, command);
     return response.data;
   }
 

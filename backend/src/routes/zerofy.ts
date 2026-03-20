@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
 import { DeviceHistoryService } from '../services/deviceHistoryService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
-import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema, ZerofyHotWaterControlSchema, ZerofyEVChargerControlSchema } from '../types/zerofy';
+import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema, ZerofyHotWaterControlSchema, ZerofyEVControlSchema, ZerofyEVChargerControlSchema } from '../types/zerofy';
 import { z } from 'zod';
 import { logger } from '../config/logger';
 
@@ -432,6 +432,93 @@ router.post('/devices/:deviceId/control',
       return res.status(400).json(response);
     }
   });
+
+/**
+ * POST /api/zerofy/devices/:deviceId/control/ev
+ * Control EV charging (start/stop)
+ */
+router.post('/devices/:deviceId/control/ev',
+  authenticateZerofyToken,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.zerofyUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const { deviceId } = req.params;
+      const device = await ZerofyService.getDevice(deviceId, req.zerofyUser.userId);
+
+      if (!device) {
+        const response: ZerofyApiResponse = {
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_FOUND',
+            message: 'Device not found or access denied'
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(404).json(response);
+      }
+
+      if (device.deviceType !== 'ev') {
+        const response: ZerofyApiResponse = {
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_CONTROLLABLE',
+            message: `Device type '${device.deviceType}' is not controllable via EV endpoint`
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(400).json(response);
+      }
+
+      const controlCommand = ZerofyEVControlSchema.parse(req.body);
+      await ZerofyService.controlEV(deviceId, req.zerofyUser.userId, controlCommand);
+
+      const response: ZerofyApiResponse = {
+        success: true,
+        data: {
+          message: 'EV control command executed successfully',
+          deviceId,
+          command: controlCommand
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(200).json(response);
+    } catch (error) {
+      logger.error({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.zerofyUser?.userId,
+        deviceId: req.params.deviceId,
+        command: req.body
+      }, 'Zerofy API: EV control command failed');
+
+      const response: ZerofyApiResponse = {
+        success: false,
+        error: {
+          code: 'CONTROL_FAILED',
+          message: error instanceof Error ? error.message : 'Failed to control EV'
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(400).json(response);
+    }
+  }
+);
 
 /**
  * POST /api/zerofy/devices/:deviceId/control/evcharger

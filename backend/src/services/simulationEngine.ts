@@ -1,4 +1,4 @@
-// // import { DateTime } from 'luxon';
+import { DateTime } from 'luxon';
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {WeatherService} from './weatherService';
@@ -18,11 +18,13 @@ import {
   HotWaterStorageState,
   HotWaterStorageConfig,
   EVConfig,
+  EVDrivingSchedule,
   EVState,
   EVChargerConfig,
   EVChargerState,
   SimulationUpdate,
-  Dwelling
+  Dwelling,
+  normalizeEVConfig
 } from '../types';
 
 export class SimulationEngine {
@@ -157,11 +159,18 @@ export class SimulationEngine {
 
     // Group devices by type for easier processing
     const devicesByType = this.groupDevicesByType(devices);
+    const resolvedApplianceStates = this.resolveApplianceCycleStates(
+      devicesByType.appliance,
+      weatherData
+    );
 
     // Calculate current solar generation
     const solarPowerW = this.calculateSolarGeneration(devicesByType.solarInverter, weatherData);
     const meterVirtualProductionW = this.calculateMeterVirtualProduction(devicesByType.meter, weatherData);
-    const applianceProductionW = this.calculateApplianceProduction(devicesByType.appliance, weatherData);
+    const applianceProductionW = this.calculateApplianceProduction(
+      devicesByType.appliance,
+      resolvedApplianceStates
+    );
     const totalProductionW = solarPowerW + meterVirtualProductionW + applianceProductionW;
 
     // Calculate household load (appliances + hot water + phantom load)
@@ -169,7 +178,9 @@ export class SimulationEngine {
       devicesByType.appliance,
       devicesByType.hotWaterStorage,
       devicesByType.ev,
-      devicesByType.evCharger
+      devicesByType.evCharger,
+      dwelling.timeZone,
+      resolvedApplianceStates
     );
 
     // Execute energy flow logic
@@ -184,7 +195,8 @@ export class SimulationEngine {
       devicesByType,
       energyFlows,
       weatherData,
-      totalProductionW
+      dwelling.timeZone,
+      resolvedApplianceStates
     );
 
     return {
@@ -230,20 +242,22 @@ export class SimulationEngine {
     appliances: Device[],
     hotWaterStorages: Device[] = [],
     evs: Device[] = [],
-    evChargers: Device[] = []
+    evChargers: Device[] = [],
+    timeZone: string,
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
   ): number {
     let totalLoadW = 0;
 
     // Sum power from all "on" appliances
     for (const appliance of appliances) {
       const config = appliance.config as ApplianceConfig;
-      const state = appliance.state as ApplianceState;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
       if (config.role === 'productionMeter') {
         continue;
       }
 
-      if (state.isOn && state.isOnline) {
-        totalLoadW += state.powerW;
+      if (resolvedState?.isOn && resolvedState.isOnline) {
+        totalLoadW += resolvedState.powerW;
       }
     }
 
@@ -258,7 +272,12 @@ export class SimulationEngine {
 
     // Add EV charging load
     for (const ev of evs) {
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const state = ev.state as EVState;
+      if (this.isDrivingNow(config, timeZone)) {
+        continue;
+      }
+
       if (state.isOnline && state.isCharging && state.isPluggedIn) {
         totalLoadW += Math.max(0, state.powerW);
       }
@@ -302,24 +321,61 @@ export class SimulationEngine {
   /**
    * Calculate total production from smartplug/appliance production meters.
    */
-  private calculateApplianceProduction(appliances: Device[], weatherData: WeatherData): number {
+  private calculateApplianceProduction(
+    appliances: Device[],
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
+  ): number {
     let totalProductionW = 0;
 
     for (const appliance of appliances) {
       const config = appliance.config as ApplianceConfig;
-      const state = appliance.state as ApplianceState;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
 
       if (config.role !== 'productionMeter') {
         continue;
       }
 
-      if (state.isOn && state.isOnline) {
-        const virtualInverterPowerW = this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
-        totalProductionW += virtualInverterPowerW;
+      if (resolvedState?.isOn && resolvedState.isOnline) {
+        totalProductionW += resolvedState.powerW;
       }
     }
 
     return totalProductionW;
+  }
+
+  /**
+   * Resolve appliance on/off state and power once per simulation cycle.
+   */
+  private resolveApplianceCycleStates(
+    appliances: Device[],
+    weatherData: WeatherData
+  ): Map<string, ResolvedApplianceCycleState> {
+    const resolvedStates = new Map<string, ResolvedApplianceCycleState>();
+
+    for (const appliance of appliances) {
+      const currentState = appliance.state as ApplianceState;
+      const applianceConfig = appliance.config as ApplianceConfig;
+
+      let newIsOn = currentState.isOn;
+
+      if (!applianceConfig.isControllable) {
+        const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
+        newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      }
+
+      const virtualInverterPowerW = this.calculateVirtualInverterPower(applianceConfig.virtualInverter, weatherData);
+      const activePowerW = applianceConfig.role === 'productionMeter'
+        ? virtualInverterPowerW
+        : (applianceConfig.powerW ?? 0);
+
+      resolvedStates.set(appliance.deviceId, {
+        isOn: newIsOn,
+        isOnline: currentState.isOnline,
+        powerW: newIsOn ? activePowerW : 0
+      });
+    }
+
+    return resolvedStates;
   }
 
   /**
@@ -495,7 +551,8 @@ export class SimulationEngine {
     devicesByType: DevicesByType,
     energyFlows: EnergyFlows,
     weatherData: WeatherData,
-    totalProductionW: number
+    timeZone: string,
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
   ): Promise<Device[]> {
     const updates: Array<{ deviceId: string; state: unknown }> = [];
     // const now = DateTime.now();
@@ -551,8 +608,9 @@ export class SimulationEngine {
     for (const meter of devicesByType.meter) {
       const config = meter.config as MeterConfig;
       const currentState = meter.state as MeterState;
+      const virtualInverterPowerW = this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
       const measuredPowerW = config.role === 'production'
-        ? Math.max(0, totalProductionW)
+        ? virtualInverterPowerW
         : this.getGridMeterPower(config.type, energyFlows.netGridPower);
       const importPowerW = Math.max(0, measuredPowerW);
       const exportPowerW = config.role === 'production'
@@ -587,31 +645,18 @@ export class SimulationEngine {
     // Update appliances
     for (const appliance of devicesByType.appliance) {
       const currentState = appliance.state as ApplianceState;
-      const applianceConfig = appliance.config as ApplianceConfig;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
 
-      // For controllable appliances, don't simulate random behavior - respect manual control
-      // For non-controllable appliances, simulate some random on/off behavior for demo
-      let newIsOn = currentState.isOn;
-      
-      if (!applianceConfig.isControllable) {
-        // Random chance to change state for non-controllable appliances
-        const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
-        newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      if (!resolvedState) {
+        continue;
       }
-
-      // Update power based on on/off state and configured power.
-      const virtualInverterPowerW = this.calculateVirtualInverterPower(applianceConfig.virtualInverter, weatherData);
-      const activePowerW = applianceConfig.role === 'productionMeter'
-        ? virtualInverterPowerW
-        : (applianceConfig.powerW ?? 0);
-      const actualPowerW = newIsOn ? activePowerW : 0;
 
       const newState: ApplianceState = {
         ...currentState,
-        isOn: newIsOn,
-        powerW: actualPowerW,
-        energyTodayKwh: newIsOn
-          ? this.updateDailyEnergy(currentState.energyTodayKwh, actualPowerW)
+        isOn: resolvedState.isOn,
+        powerW: resolvedState.powerW,
+        energyTodayKwh: resolvedState.isOn
+          ? this.updateDailyEnergy(currentState.energyTodayKwh, resolvedState.powerW)
           : currentState.energyTodayKwh
       };
 
@@ -620,26 +665,43 @@ export class SimulationEngine {
 
     // Update EVs
     for (const ev of devicesByType.ev) {
-      const config = ev.config as EVConfig;
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const currentState = ev.state as EVState;
+      const isDriving = this.isDrivingNow(config, timeZone);
 
       const intervalHours = this.simulationIntervalMs / 1000 / 3600;
-      const targetPowerW = currentState.isCharging && currentState.isPluggedIn && currentState.isOnline
-        ? Math.min(config.maxChargePowerW, Math.max(0, currentState.powerW || config.maxChargePowerW))
+      const requestedChargingPowerW = currentState.powerW > 0 ? currentState.powerW : config.maxChargePowerW;
+      const remainingChargeCapacityKwh = config.batteryCapacityKwh * (1 - currentState.batteryLevel);
+      const maxChargeByCapacityW = intervalHours > 0
+        ? (remainingChargeCapacityKwh / (intervalHours * config.efficiency)) * 1000
         : 0;
-
-      const addedEnergyKwh = (targetPowerW / 1000) * intervalHours * config.efficiency;
+      const chargingPowerW = currentState.isCharging && currentState.isPluggedIn && currentState.isOnline
+        ? Math.min(config.maxChargePowerW, requestedChargingPowerW, Math.max(0, maxChargeByCapacityW))
+        : 0;
+      const availableDrivingEnergyKwh = config.batteryCapacityKwh * currentState.batteryLevel;
+      const maxDrivingByCapacityW = intervalHours > 0
+        ? (availableDrivingEnergyKwh / intervalHours) * 1000
+        : 0;
+      const drivingPowerW = isDriving && currentState.isOnline
+        ? Math.min(Math.max(0, config.drivingDischargePowerW ?? 0), Math.max(0, maxDrivingByCapacityW))
+        : 0;
+      const targetPowerW = isDriving ? -drivingPowerW : chargingPowerW;
+      const batteryDeltaKwh = isDriving
+        ? -((drivingPowerW / 1000) * intervalHours)
+        : (chargingPowerW / 1000) * intervalHours * config.efficiency;
       const newBatteryLevel = Math.max(
         0,
-        Math.min(1, currentState.batteryLevel + addedEnergyKwh / config.batteryCapacityKwh)
+        Math.min(1, currentState.batteryLevel + batteryDeltaKwh / config.batteryCapacityKwh)
       );
 
       const newState: EVState = {
         ...currentState,
         powerW: targetPowerW,
         batteryLevel: Math.round(newBatteryLevel * 1000) / 1000,
-        energyTodayKwh: this.updateDailyEnergy(currentState.energyTodayKwh, targetPowerW),
-        isCharging: currentState.isCharging && currentState.isPluggedIn && targetPowerW > 0
+        energyTodayKwh: chargingPowerW > 0
+          ? this.updateDailyEnergy(currentState.energyTodayKwh, chargingPowerW)
+          : currentState.energyTodayKwh,
+        isCharging: !isDriving && currentState.isCharging && currentState.isPluggedIn && chargingPowerW > 0
       };
 
       updates.push({deviceId: ev.deviceId, state: newState});
@@ -747,6 +809,60 @@ export class SimulationEngine {
   }
 
   /**
+   * Check whether the EV should be driving in the dwelling's local time.
+   */
+  private isDrivingNow(config: EVConfig, timeZone: string): boolean {
+    if (!config.drivingDischargePowerW || config.drivingDischargePowerW <= 0) {
+      return false;
+    }
+
+    const now = DateTime.now().setZone(timeZone);
+    const currentMinutes = now.hour * 60 + now.minute;
+
+    return config.drivingSchedules.some((schedule) => this.isDrivingInSchedule(schedule, currentMinutes));
+  }
+
+  /**
+   * Convert an HH:mm value into minutes since midnight.
+   */
+  private timeToMinutes(value: string): number | null {
+    const [hoursText, minutesText] = value.split(':');
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText);
+
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      return null;
+    }
+
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Check whether a specific schedule is active at the current minute.
+   */
+  private isDrivingInSchedule(schedule: EVDrivingSchedule, currentMinutes: number): boolean {
+    const startMinutes = this.timeToMinutes(schedule.startTime);
+    const endMinutes = this.timeToMinutes(schedule.endTime);
+
+    if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) {
+      return false;
+    }
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    }
+
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+
+  /**
    * Group devices by type for easier processing
    */
   private groupDevicesByType(devices: Device[]): DevicesByType {
@@ -844,6 +960,12 @@ type DevicesByType = {
   hotWaterStorage: Device[];
   ev: Device[];
   evCharger: Device[];
+};
+
+type ResolvedApplianceCycleState = {
+  isOn: boolean;
+  isOnline: boolean;
+  powerW: number;
 };
 
 type EnergyFlows = {

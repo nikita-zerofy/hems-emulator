@@ -1,3 +1,4 @@
+import {DateTime} from 'luxon';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import {query} from '../config/database';
@@ -14,6 +15,7 @@ import {
   ZerofyDeviceDetails,
   ZerofyDeviceList,
   ZerofyDeviceStatus,
+  ZerofyEVControl,
   ZerofyHotWaterControl,
   ZerofyEVChargerControl
 } from '../types/zerofy';
@@ -25,12 +27,16 @@ import {
   BatteryState,
   Device,
   DeviceType,
+  Dwelling,
+  EVConfig,
+  EVDrivingSchedule,
   MeterConfig,
   MeterState,
   SolarInverterState,
   HotWaterStorageState,
   EVState,
-  EVChargerState
+  EVChargerState,
+  normalizeEVConfig
 } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'your_jwt_secret_key_change_in_production';
@@ -139,23 +145,25 @@ export class ZerofyService {
       return null;
     }
 
-    return this.transformDeviceToZerofyStatus(device);
+    return this.transformDeviceToZerofyStatus(device, dwelling.timeZone);
   }
 
 
   /**
    * Transform internal device to Zerofy device list format
    */
-  private static transformDeviceToZerofyList(device: Device, dwelling: any): ZerofyDeviceList {
+  private static transformDeviceToZerofyList(device: Device, dwelling: Dwelling): ZerofyDeviceList {
     const deviceType = DEVICE_TYPE_MAPPING[device.deviceType as keyof typeof DEVICE_TYPE_MAPPING];
     const capabilities = DEVICE_CAPABILITIES[deviceType as keyof typeof DEVICE_CAPABILITIES];
     const isOnline = device.state && typeof device.state === 'object' && 'isOnline' in device.state ? device.state.isOnline : true;
+    const isEvAtHome = this.getIsEvAtHome(device, dwelling.timeZone);
 
     return {
       deviceId: device.deviceId,
       deviceType,
       name: device.name ?? `${deviceType} ${device.deviceId.slice(0, 8)}`,
       status: isOnline ? 'online' : 'offline',
+      isEvAtHome,
       location: {
         dwellingId: dwelling.dwellingId,
         dwellingName: `Dwelling ${dwelling.dwellingId.slice(0, 8)}`
@@ -168,23 +176,28 @@ export class ZerofyService {
   /**
    * Transform internal device to Zerofy device details format
    */
-  private static transformDeviceToZerofyDetails(device: Device, dwelling: any): ZerofyDeviceDetails {
+  private static transformDeviceToZerofyDetails(device: Device, dwelling: Dwelling): ZerofyDeviceDetails {
     const deviceType = DEVICE_TYPE_MAPPING[device.deviceType as keyof typeof DEVICE_TYPE_MAPPING];
     const capabilities = DEVICE_CAPABILITIES[deviceType as keyof typeof DEVICE_CAPABILITIES];
     const isOnline = device.state && typeof device.state === 'object' && 'isOnline' in device.state ? device.state.isOnline : true;
+    const isEvAtHome = this.getIsEvAtHome(device, dwelling.timeZone);
+    const configuration = device.deviceType === DeviceType.EV
+      ? normalizeEVConfig(device.config as EVConfig)
+      : device.config as Record<string, unknown>;
 
     return {
       deviceId: device.deviceId,
       deviceType,
       name: device.name ?? `${deviceType} ${device.deviceId.slice(0, 8)}`,
       status: isOnline ? 'online' : 'offline',
+      isEvAtHome,
       location: {
         dwellingId: dwelling.dwellingId,
         dwellingName: `Dwelling ${dwelling.dwellingId.slice(0, 8)}`,
         coordinates: dwelling.location
       },
       capabilities: [...capabilities],
-      configuration: device.config as Record<string, unknown>,
+      configuration,
       currentState: device.state as Record<string, unknown>,
       lastUpdate: device.updatedAt.toISOString(),
       metadata: {
@@ -199,13 +212,15 @@ export class ZerofyService {
   /**
    * Transform internal device to Zerofy device status format
    */
-  private static transformDeviceToZerofyStatus(device: Device): ZerofyDeviceStatus {
+  private static transformDeviceToZerofyStatus(device: Device, timeZone: string): ZerofyDeviceStatus {
     const deviceType = DEVICE_TYPE_MAPPING[device.deviceType as keyof typeof DEVICE_TYPE_MAPPING];
     const isOnline = device.state && typeof device.state === 'object' && 'isOnline' in device.state ? device.state.isOnline : true;
+    const isEvAtHome = this.getIsEvAtHome(device, timeZone);
 
     let power = 0;
     let energy = 0;
     let batteryLevel = 0;
+    let isEvAtHomeValue: boolean | undefined = isEvAtHome;
     let isOn: boolean | undefined = undefined;
     let waterTemperatureC: number | undefined = undefined;
     let targetTemperatureC: number | undefined = undefined;
@@ -276,6 +291,7 @@ export class ZerofyService {
       power: Math.round(power),
       energy: Math.round(energy * 100) / 100, // Round to 2 decimal places
       batteryLevel: Math.round(batteryLevel),
+      isEvAtHome: isEvAtHomeValue,
       isOn,
       waterTemperatureC,
       targetTemperatureC,
@@ -293,6 +309,72 @@ export class ZerofyService {
         simulated: true
       }
     };
+  }
+
+  /**
+   * Check whether the EV is currently at home.
+   */
+  private static getIsEvAtHome(device: Device, timeZone: string): boolean | undefined {
+    if (device.deviceType !== DeviceType.EV) {
+      return undefined;
+    }
+
+    const config = normalizeEVConfig(device.config as EVConfig);
+    return !this.isDrivingNow(config, timeZone);
+  }
+
+  /**
+   * Check whether any EV driving schedule is currently active.
+   */
+  private static isDrivingNow(config: EVConfig, timeZone: string): boolean {
+    if (!config.drivingDischargePowerW || config.drivingDischargePowerW <= 0) {
+      return false;
+    }
+
+    const now = DateTime.now().setZone(timeZone);
+    const currentMinutes = now.hour * 60 + now.minute;
+
+    return config.drivingSchedules.some((schedule) => this.isScheduleActive(schedule, currentMinutes));
+  }
+
+  /**
+   * Check whether a schedule is active for the provided local minute.
+   */
+  private static isScheduleActive(schedule: EVDrivingSchedule, currentMinutes: number): boolean {
+    const startMinutes = this.timeToMinutes(schedule.startTime);
+    const endMinutes = this.timeToMinutes(schedule.endTime);
+
+    if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) {
+      return false;
+    }
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    }
+
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+
+  /**
+   * Convert an HH:mm value into minutes since midnight.
+   */
+  private static timeToMinutes(value: string): number | null {
+    const [hoursText, minutesText] = value.split(':');
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText);
+
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      return null;
+    }
+
+    return hours * 60 + minutes;
   }
 
   /**
@@ -373,6 +455,27 @@ export class ZerofyService {
     }
 
     await DeviceService.controlHotWaterStorage(deviceId, control);
+  }
+
+  /**
+   * Control EV charging for Zerofy app
+   */
+  static async controlEV(deviceId: string, userId: string, control: ZerofyEVControl): Promise<void> {
+    const device = await DeviceService.getDevice(deviceId);
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    const dwelling = await DwellingService.getDwelling(device.dwellingId, userId);
+    if (!dwelling) {
+      throw new Error('Access denied');
+    }
+
+    if (device.deviceType !== DeviceType.EV) {
+      throw new Error('Device is not an EV');
+    }
+
+    await DeviceService.controlEV(deviceId, control);
   }
 
   /**

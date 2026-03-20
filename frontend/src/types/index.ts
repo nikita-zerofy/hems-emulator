@@ -60,10 +60,17 @@ export interface BatteryConfig {
   maxSoc: number;
 }
 
+export type EVDrivingSchedule = {
+  startTime: string;
+  endTime: string;
+};
+
 export interface EVConfig {
   batteryCapacityKwh: number;
   maxChargePowerW: number;
   efficiency: number;
+  drivingSchedules?: EVDrivingSchedule[];
+  drivingDischargePowerW?: number;
 }
 
 export interface VirtualInverterConfig {
@@ -255,6 +262,10 @@ export interface ApplianceControlCommand {
 export interface HotWaterStorageControlCommand {
   boostOn: boolean;
   targetTemperatureC?: number;
+}
+
+export interface EVControlCommand {
+  action: 'start' | 'stop';
 }
 
 export interface EVChargerControlCommand {

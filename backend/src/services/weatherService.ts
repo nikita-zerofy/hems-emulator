@@ -4,13 +4,15 @@ import { WeatherData, Location } from '../types';
 import { logger } from '../config/logger';
 
 const OPEN_METEO_API_URL = 'https://api.open-meteo.com/v1/forecast';
-const WeatherCacheTtlMs = 60 * 60 * 1000;
+const WeatherCacheTtlMs = 15 * 60 * 1000;
 const WeatherBatchSize = 3;
+const WeatherLocationToleranceKm = 50;
 
 type CachedWeatherEntry = {
+  location: Location;
   weatherData: WeatherData;
   expiresAtMs: number;
-  source: 'provider' | 'simulated';
+  source: 'provider';
 };
 
 export class WeatherService {
@@ -20,8 +22,7 @@ export class WeatherService {
    * Get weather data for a location using the cache first.
    */
   static async getCurrentWeatherData(location: Location): Promise<WeatherData> {
-    const cacheKey = this.getLocationCacheKey(location);
-    const cachedWeather = this.getCachedWeatherData(cacheKey);
+    const cachedWeather = this.getCachedWeatherData(location);
 
     if (cachedWeather) {
       logger.debug({
@@ -34,7 +35,7 @@ export class WeatherService {
 
     try {
       const weatherData = await this.fetchCurrentWeatherData(location);
-      this.setCachedWeatherData(cacheKey, weatherData, 'provider');
+      this.setCachedWeatherData(location, weatherData);
 
       logger.debug({
         location,
@@ -49,7 +50,6 @@ export class WeatherService {
       }, 'Weather API error');
 
       const weatherData = this.getSimulatedWeatherData(location);
-      this.setCachedWeatherData(cacheKey, weatherData, 'simulated');
 
       logger.warn({
         location,
@@ -68,14 +68,15 @@ export class WeatherService {
     const groupedLocations = new Map<string, { location: Location; dwellingIds: string[] }>();
 
     for (const {dwellingId, location} of locations) {
-      const cacheKey = this.getLocationCacheKey(location);
-      const existingLocation = groupedLocations.get(cacheKey);
+      const groupedLocationKey = this.findMatchingLocationKey(location, groupedLocations.values());
+      const existingLocation = groupedLocationKey ? groupedLocations.get(groupedLocationKey) : null;
 
       if (existingLocation) {
         existingLocation.dwellingIds.push(dwellingId);
         continue;
       }
 
+      const cacheKey = this.getLocationCacheKey(location);
       groupedLocations.set(cacheKey, {
         location,
         dwellingIds: [dwellingId]
@@ -146,7 +147,13 @@ export class WeatherService {
   /**
    * Return a fresh cached weather entry when available.
    */
-  private static getCachedWeatherData(cacheKey: string): CachedWeatherEntry | null {
+  private static getCachedWeatherData(location: Location): CachedWeatherEntry | null {
+    const cacheKey = this.findReusableCacheKey(location);
+
+    if (!cacheKey) {
+      return null;
+    }
+
     const cachedWeather = this.weatherCache.get(cacheKey);
 
     if (!cachedWeather) {
@@ -165,15 +172,80 @@ export class WeatherService {
    * Store weather data in the process-local cache.
    */
   private static setCachedWeatherData(
-    cacheKey: string,
-    weatherData: WeatherData,
-    source: CachedWeatherEntry['source']
+    location: Location,
+    weatherData: WeatherData
   ): void {
+    const cacheKey = this.findReusableCacheKey(location) ?? this.getLocationCacheKey(location);
+
     this.weatherCache.set(cacheKey, {
+      location,
       weatherData,
-      source,
+      source: 'provider',
       expiresAtMs: DateTime.now().plus({milliseconds: WeatherCacheTtlMs}).toMillis()
     });
+  }
+
+  /**
+   * Find an existing location within the configured distance tolerance.
+   */
+  private static findMatchingLocationKey<T extends { location: Location }>(
+    location: Location,
+    entries: Iterable<T>
+  ): string | null {
+    for (const entry of entries) {
+      const distanceKm = this.calculateDistanceKm(location, entry.location);
+
+      if (distanceKm <= WeatherLocationToleranceKm) {
+        return this.getLocationCacheKey(entry.location);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find a fresh cached location within the configured distance tolerance.
+   */
+  private static findReusableCacheKey(location: Location): string | null {
+    const nowMs = DateTime.now().toMillis();
+
+    for (const [cacheKey, entry] of this.weatherCache.entries()) {
+      if (entry.expiresAtMs <= nowMs) {
+        this.weatherCache.delete(cacheKey);
+        continue;
+      }
+
+      const distanceKm = this.calculateDistanceKm(location, entry.location);
+      if (distanceKm <= WeatherLocationToleranceKm) {
+        return cacheKey;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Calculate great-circle distance between two coordinates.
+   */
+  private static calculateDistanceKm(a: Location, b: Location): number {
+    const EarthRadiusKm = 6371;
+    const dLat = this.toRadians(b.lat - a.lat);
+    const dLng = this.toRadians(b.lng - a.lng);
+    const lat1 = this.toRadians(a.lat);
+    const lat2 = this.toRadians(b.lat);
+
+    const haversine =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+    return 2 * EarthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  }
+
+  /**
+   * Convert degrees to radians.
+   */
+  private static toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   /**
