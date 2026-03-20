@@ -180,8 +180,7 @@ export class SimulationEngine {
       devicesByType,
       energyFlows,
       weatherData,
-      dwelling.timeZone,
-      totalProductionW
+      dwelling.timeZone
     );
 
     return {
@@ -498,8 +497,7 @@ export class SimulationEngine {
     devicesByType: DevicesByType,
     energyFlows: EnergyFlows,
     weatherData: WeatherData,
-    timeZone: string,
-    totalProductionW: number
+    timeZone: string
   ): Promise<Device[]> {
     const updates: Array<{ deviceId: string; state: unknown }> = [];
     // const now = DateTime.now();
@@ -555,8 +553,11 @@ export class SimulationEngine {
     for (const meter of devicesByType.meter) {
       const config = meter.config as MeterConfig;
       const currentState = meter.state as MeterState;
+      const productionMeterPowerW = currentState.isOnline
+        ? this.calculateVirtualInverterPower(config.virtualInverter, weatherData)
+        : 0;
       const measuredPowerW = config.role === 'production'
-        ? Math.max(0, totalProductionW)
+        ? productionMeterPowerW
         : this.getGridMeterPower(config.type, energyFlows.netGridPower);
       const importPowerW = Math.max(0, measuredPowerW);
       const exportPowerW = config.role === 'production'
