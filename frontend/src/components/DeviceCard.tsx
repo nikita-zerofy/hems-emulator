@@ -211,7 +211,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
           : state.powerW < 0
             ? 'kWh Exported'
             : 'kWh Imported';
-        const sourceLabel = config.virtualInverter?.enabled ? 'Virtual+Site' : 'Site';
+        const sourceLabel = config.virtualInverter?.enabled ? 'Virtual Inverter' : 'Disabled';
         return (
           <div className="device-metrics">
             <div className="metric">
