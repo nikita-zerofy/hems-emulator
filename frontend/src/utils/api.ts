@@ -12,10 +12,12 @@ import {
   ApplianceControlCommand,
   CreateDeviceForm,
   HotWaterStorageControlCommand,
+  EVControlCommand,
   EVChargerControlCommand 
 } from '../types';
 
 const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
+// const API_BASE_URL = 'http://localhost:3001';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -194,6 +196,12 @@ class ApiClient {
   // Hot Water Storage Control
   async controlHotWaterStorage(deviceId: string, command: HotWaterStorageControlCommand): Promise<ApiResponse> {
     const response = await this.client.post(`/devices/${deviceId}/control`, command);
+    return response.data;
+  }
+
+  // EV Control
+  async controlEV(deviceId: string, command: EVControlCommand): Promise<ApiResponse> {
+    const response = await this.client.post(`/devices/${deviceId}/control/ev`, command);
     return response.data;
   }
 

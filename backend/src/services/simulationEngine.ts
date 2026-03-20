@@ -1,4 +1,4 @@
-// // import { DateTime } from 'luxon';
+import { DateTime } from 'luxon';
 import {query} from '../config/database';
 import {DeviceService} from './deviceService';
 import {WeatherService} from './weatherService';
@@ -18,11 +18,13 @@ import {
   HotWaterStorageState,
   HotWaterStorageConfig,
   EVConfig,
+  EVDrivingSchedule,
   EVState,
   EVChargerConfig,
   EVChargerState,
   SimulationUpdate,
-  Dwelling
+  Dwelling,
+  normalizeEVConfig
 } from '../types';
 
 export class SimulationEngine {
@@ -162,7 +164,8 @@ export class SimulationEngine {
       devicesByType.appliance,
       devicesByType.hotWaterStorage,
       devicesByType.ev,
-      devicesByType.evCharger
+      devicesByType.evCharger,
+      dwelling.timeZone
     );
 
     // Execute energy flow logic
@@ -177,6 +180,7 @@ export class SimulationEngine {
       devicesByType,
       energyFlows,
       weatherData,
+      dwelling.timeZone,
       totalProductionW
     );
 
@@ -223,7 +227,8 @@ export class SimulationEngine {
     appliances: Device[],
     hotWaterStorages: Device[] = [],
     evs: Device[] = [],
-    evChargers: Device[] = []
+    evChargers: Device[] = [],
+    timeZone: string
   ): number {
     let totalLoadW = 0;
 
@@ -251,7 +256,12 @@ export class SimulationEngine {
 
     // Add EV charging load
     for (const ev of evs) {
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const state = ev.state as EVState;
+      if (this.isDrivingNow(config, timeZone)) {
+        continue;
+      }
+
       if (state.isOnline && state.isCharging && state.isPluggedIn) {
         totalLoadW += Math.max(0, state.powerW);
       }
@@ -488,6 +498,7 @@ export class SimulationEngine {
     devicesByType: DevicesByType,
     energyFlows: EnergyFlows,
     weatherData: WeatherData,
+    timeZone: string,
     totalProductionW: number
   ): Promise<Device[]> {
     const updates: Array<{ deviceId: string; state: unknown }> = [];
@@ -613,26 +624,43 @@ export class SimulationEngine {
 
     // Update EVs
     for (const ev of devicesByType.ev) {
-      const config = ev.config as EVConfig;
+      const config = normalizeEVConfig(ev.config as EVConfig);
       const currentState = ev.state as EVState;
+      const isDriving = this.isDrivingNow(config, timeZone);
 
       const intervalHours = this.simulationIntervalMs / 1000 / 3600;
-      const targetPowerW = currentState.isCharging && currentState.isPluggedIn && currentState.isOnline
-        ? Math.min(config.maxChargePowerW, Math.max(0, currentState.powerW || config.maxChargePowerW))
+      const requestedChargingPowerW = currentState.powerW > 0 ? currentState.powerW : config.maxChargePowerW;
+      const remainingChargeCapacityKwh = config.batteryCapacityKwh * (1 - currentState.batteryLevel);
+      const maxChargeByCapacityW = intervalHours > 0
+        ? (remainingChargeCapacityKwh / (intervalHours * config.efficiency)) * 1000
         : 0;
-
-      const addedEnergyKwh = (targetPowerW / 1000) * intervalHours * config.efficiency;
+      const chargingPowerW = currentState.isCharging && currentState.isPluggedIn && currentState.isOnline
+        ? Math.min(config.maxChargePowerW, requestedChargingPowerW, Math.max(0, maxChargeByCapacityW))
+        : 0;
+      const availableDrivingEnergyKwh = config.batteryCapacityKwh * currentState.batteryLevel;
+      const maxDrivingByCapacityW = intervalHours > 0
+        ? (availableDrivingEnergyKwh / intervalHours) * 1000
+        : 0;
+      const drivingPowerW = isDriving && currentState.isOnline
+        ? Math.min(Math.max(0, config.drivingDischargePowerW ?? 0), Math.max(0, maxDrivingByCapacityW))
+        : 0;
+      const targetPowerW = isDriving ? -drivingPowerW : chargingPowerW;
+      const batteryDeltaKwh = isDriving
+        ? -((drivingPowerW / 1000) * intervalHours)
+        : (chargingPowerW / 1000) * intervalHours * config.efficiency;
       const newBatteryLevel = Math.max(
         0,
-        Math.min(1, currentState.batteryLevel + addedEnergyKwh / config.batteryCapacityKwh)
+        Math.min(1, currentState.batteryLevel + batteryDeltaKwh / config.batteryCapacityKwh)
       );
 
       const newState: EVState = {
         ...currentState,
         powerW: targetPowerW,
         batteryLevel: Math.round(newBatteryLevel * 1000) / 1000,
-        energyTodayKwh: this.updateDailyEnergy(currentState.energyTodayKwh, targetPowerW),
-        isCharging: currentState.isCharging && currentState.isPluggedIn && targetPowerW > 0
+        energyTodayKwh: chargingPowerW > 0
+          ? this.updateDailyEnergy(currentState.energyTodayKwh, chargingPowerW)
+          : currentState.energyTodayKwh,
+        isCharging: !isDriving && currentState.isCharging && currentState.isPluggedIn && chargingPowerW > 0
       };
 
       updates.push({deviceId: ev.deviceId, state: newState});
@@ -737,6 +765,60 @@ export class SimulationEngine {
     }
 
     return netGridPower;
+  }
+
+  /**
+   * Check whether the EV should be driving in the dwelling's local time.
+   */
+  private isDrivingNow(config: EVConfig, timeZone: string): boolean {
+    if (!config.drivingDischargePowerW || config.drivingDischargePowerW <= 0) {
+      return false;
+    }
+
+    const now = DateTime.now().setZone(timeZone);
+    const currentMinutes = now.hour * 60 + now.minute;
+
+    return config.drivingSchedules.some((schedule) => this.isDrivingInSchedule(schedule, currentMinutes));
+  }
+
+  /**
+   * Convert an HH:mm value into minutes since midnight.
+   */
+  private timeToMinutes(value: string): number | null {
+    const [hoursText, minutesText] = value.split(':');
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText);
+
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      return null;
+    }
+
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Check whether a specific schedule is active at the current minute.
+   */
+  private isDrivingInSchedule(schedule: EVDrivingSchedule, currentMinutes: number): boolean {
+    const startMinutes = this.timeToMinutes(schedule.startTime);
+    const endMinutes = this.timeToMinutes(schedule.endTime);
+
+    if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) {
+      return false;
+    }
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    }
+
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
   }
 
   /**

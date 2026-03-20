@@ -17,6 +17,7 @@ export const ZerofyDeviceStatusSchema = z.object({
   power: z.number(), // Current power in watts
   energy: z.number(), // Energy today in kWh
   batteryLevel: z.number(),
+  isEvAtHome: z.boolean().optional(),
   isOn: z.boolean().optional(), // On/off state for appliances
   waterTemperatureC: z.number().optional(),
   targetTemperatureC: z.number().optional(),
@@ -35,6 +36,7 @@ export const ZerofyDeviceListSchema = z.object({
   deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
+  isEvAtHome: z.boolean().optional(),
   location: z.object({
     dwellingId: z.string(),
     dwellingName: z.string().optional()
@@ -51,6 +53,7 @@ export const ZerofyDeviceDetailsSchema = z.object({
   deviceType: z.enum(['solar', 'battery', 'meter', 'appliance', 'hotWaterStorage', 'ev', 'evCharger']),
   name: z.string(),
   status: z.enum(['online', 'offline', 'error']),
+  isEvAtHome: z.boolean().optional(),
   location: z.object({
     dwellingId: z.string(),
     dwellingName: z.string().optional(),
@@ -119,7 +122,7 @@ export const DEVICE_CAPABILITIES = {
   meter: ['power_monitoring', 'energy_monitoring', 'bidirectional_flow'],
   appliance: ['power_control', 'energy_monitoring', 'remote_control'],
   hotWaterStorage: ['water_heating', 'boost_control', 'temperature_monitoring'],
-  ev: ['soc_monitoring', 'charging_status', 'energy_monitoring'],
+  ev: ['soc_monitoring', 'charging_status', 'charging_control', 'energy_monitoring'],
   evCharger: ['charging_control', 'power_control', 'energy_monitoring']
 } as const;
 
@@ -145,6 +148,15 @@ export const ZerofyHotWaterControlSchema = z.object({
 });
 
 export type ZerofyHotWaterControl = z.infer<typeof ZerofyHotWaterControlSchema>;
+
+// Zerofy EV Control
+export const ZerofyEVControlActionSchema = z.enum(['start', 'stop']);
+
+export const ZerofyEVControlSchema = z.object({
+  action: ZerofyEVControlActionSchema
+});
+
+export type ZerofyEVControl = z.infer<typeof ZerofyEVControlSchema>;
 
 // Zerofy EV Charger Control
 export const ZerofyEVChargerControlSchema = z.object({

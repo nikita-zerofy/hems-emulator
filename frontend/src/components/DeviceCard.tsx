@@ -16,6 +16,9 @@ import {
   HotWaterStorageState,
   HotWaterStorageControlCommand,
   EVState,
+  EVConfig,
+  EVDrivingSchedule,
+  EVControlCommand,
   EVChargerState,
   EVChargerControlCommand
 } from '../types';
@@ -26,14 +29,59 @@ interface DeviceCardProps {
   onDeviceDeleted: (deviceId: string) => void;
 }
 
+type LegacyEVConfig = {
+  batteryCapacityKwh: number;
+  maxChargePowerW: number;
+  efficiency: number;
+  drivingSchedules?: EVDrivingSchedule[];
+  drivingDischargePowerW?: number;
+  drivingStartTime?: string;
+  drivingEndTime?: string;
+};
+
+const DefaultEVDrivingSchedule: EVDrivingSchedule = {
+  startTime: '08:00',
+  endTime: '09:00'
+};
+
+const normalizeEVConfig = (config: LegacyEVConfig): EVConfig => {
+  const drivingSchedules = Array.isArray(config.drivingSchedules)
+    ? config.drivingSchedules
+    : config.drivingStartTime && config.drivingEndTime
+      ? [{startTime: config.drivingStartTime, endTime: config.drivingEndTime}]
+      : [];
+
+  return {
+    batteryCapacityKwh: config.batteryCapacityKwh,
+    maxChargePowerW: config.maxChargePowerW,
+    efficiency: config.efficiency,
+    drivingSchedules,
+    drivingDischargePowerW: config.drivingDischargePowerW
+  };
+};
+
 const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
   const [loading, setLoading] = useState(false);
   const [controlLoading, setControlLoading] = useState(false);
   const [currentDevice, setCurrentDevice] = useState<Device>(device);
+  const [drivingSchedules, setDrivingSchedules] = useState<EVDrivingSchedule[]>([]);
+  const [drivingDischargePowerW, setDrivingDischargePowerW] = useState('');
 
   React.useEffect(() => {
     setCurrentDevice(device);
   }, [device]);
+
+  React.useEffect(() => {
+    if (currentDevice.deviceType !== DeviceType.EV) {
+      return;
+    }
+
+    const config = normalizeEVConfig(currentDevice.config as LegacyEVConfig);
+    setDrivingSchedules(config.drivingSchedules ?? []);
+    setDrivingDischargePowerW(
+      config.drivingDischargePowerW !== undefined ? String(config.drivingDischargePowerW) : ''
+    );
+  }, [currentDevice]);
 
   const getApplianceConfig = () => currentDevice.config as ApplianceConfig;
   const getMeterConfig = () => currentDevice.config as MeterConfig;
@@ -210,6 +258,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       case DeviceType.EV: {
         const state = currentDevice.state as EVState;
+        const status = state.powerW < 0 ? 'Driving' : state.isCharging ? 'Charging' : 'Idle';
         return (
           <div className="device-metrics">
             <div className="metric">
@@ -217,7 +266,7 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
               <div className="metric-label">Battery</div>
             </div>
             <div className="metric">
-              <div className="metric-value">{state.isCharging ? 'Charging' : 'Idle'}</div>
+              <div className="metric-value">{status}</div>
               <div className="metric-label">Status</div>
             </div>
             <div className="metric">
@@ -306,6 +355,67 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     } finally {
       setControlLoading(false);
     }
+  };
+
+  const handleEVControl = async (action: 'start' | 'stop') => {
+    try {
+      setControlLoading(true);
+      const command: EVControlCommand = { action };
+      await apiClient.controlEV(currentDevice.deviceId, command);
+      const updated = await apiClient.getDevice(currentDevice.deviceId);
+      setCurrentDevice(updated);
+      alert(`EV charging ${action === 'start' ? 'started' : 'stopped'}`);
+    } catch (err) {
+      alert('Failed to control EV: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
+  const handleEVDrivingScheduleSave = async () => {
+    if (currentDevice.deviceType !== DeviceType.EV) {
+      return;
+    }
+
+    try {
+      setControlLoading(true);
+      const config = normalizeEVConfig(currentDevice.config as LegacyEVConfig);
+      const updatedDevice = await apiClient.updateDevice(currentDevice.deviceId, {
+        batteryCapacityKwh: config.batteryCapacityKwh,
+        maxChargePowerW: config.maxChargePowerW,
+        efficiency: config.efficiency,
+        drivingSchedules,
+        drivingDischargePowerW: Number(drivingDischargePowerW)
+      });
+      setCurrentDevice(updatedDevice);
+      alert('EV driving schedule updated');
+    } catch (err) {
+      alert('Failed to update EV driving schedule: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setControlLoading(false);
+    }
+  };
+
+  const handleEVScheduleChange = (
+    scheduleIndex: number,
+    key: keyof EVDrivingSchedule,
+    value: string
+  ) => {
+    setDrivingSchedules((prev) =>
+      prev.map((schedule, index) => (
+        index === scheduleIndex ? {...schedule, [key]: value} : schedule
+      ))
+    );
+  };
+
+  const handleAddEVSchedule = () => {
+    setDrivingSchedules((prev) => [...prev, {...DefaultEVDrivingSchedule}]);
+  };
+
+  const handleRemoveEVSchedule = (scheduleIndex: number) => {
+    setDrivingSchedules((prev) => (
+      prev.length > 1 ? prev.filter((_, index) => index !== scheduleIndex) : prev
+    ));
   };
 
   const handleEVChargerControl = async (isCharging: boolean, targetPowerW?: number) => {
@@ -557,6 +667,159 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
           )}
         </div>
       )}
+
+      {/* EV Controls */}
+      {currentDevice.deviceType === DeviceType.EV && (() => {
+        const config = normalizeEVConfig(currentDevice.config as LegacyEVConfig);
+        const state = currentDevice.state as EVState;
+        const canStart = state.isPluggedIn && !state.isCharging && state.powerW >= 0;
+        const canStop = state.isCharging;
+        const isScheduleValid =
+          drivingSchedules.length > 0 &&
+          drivingSchedules.every((schedule) => schedule.startTime !== '' && schedule.endTime !== '') &&
+          drivingDischargePowerW !== '' &&
+          Number(drivingDischargePowerW) >= 0;
+        const currentSchedule = config.drivingSchedules && config.drivingSchedules.length > 0 && config.drivingDischargePowerW !== undefined
+          ? `${config.drivingSchedules.map((schedule) => `${schedule.startTime} - ${schedule.endTime}`).join(', ')} at ${config.drivingDischargePowerW}W`
+          : 'Not configured';
+
+        return (
+          <div style={{ 
+            marginTop: '1rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid #f3f4f6'
+          }}>
+            <div style={{ 
+              fontSize: '0.875rem', 
+              fontWeight: '500', 
+              marginBottom: '0.5rem',
+              color: '#374151'
+            }}>
+              EV Control
+            </div>
+            <div style={{ 
+              marginBottom: '0.75rem',
+              fontSize: '0.75rem',
+              color: '#6b7280'
+            }}>
+              Driving schedule: {currentSchedule}
+            </div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.5rem'
+            }}>
+              <button
+                onClick={() => handleEVControl('start')}
+                disabled={controlLoading || !canStart}
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: '0.75rem' }}
+              >
+                {state.isCharging ? 'Charging' : 'Start Charging'}
+              </button>
+              <button
+                onClick={() => handleEVControl('stop')}
+                disabled={controlLoading || !canStop}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.75rem' }}
+              >
+                {state.isCharging ? 'Stop Charging' : 'Stopped'}
+              </button>
+            </div>
+            {drivingSchedules.map((schedule, scheduleIndex) => (
+              <div
+                key={`${scheduleIndex}-${schedule.startTime}-${schedule.endTime}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr',
+                  gap: '0.5rem',
+                  marginTop: '0.75rem'
+                }}
+              >
+                <input
+                  type="time"
+                  value={schedule.startTime}
+                  onChange={(e) => handleEVScheduleChange(scheduleIndex, 'startTime', e.target.value)}
+                  className="form-input"
+                  aria-label={`Driving start time ${scheduleIndex + 1}`}
+                />
+                <input
+                  type="time"
+                  value={schedule.endTime}
+                  onChange={(e) => handleEVScheduleChange(scheduleIndex, 'endTime', e.target.value)}
+                  className="form-input"
+                  aria-label={`Driving end time ${scheduleIndex + 1}`}
+                />
+                <button
+                  onClick={() => handleRemoveEVSchedule(scheduleIndex)}
+                  disabled={controlLoading || drivingSchedules.length <= 1}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <div style={{ marginTop: '0.5rem' }}>
+              <input
+                type="number"
+                value={drivingDischargePowerW}
+                onChange={(e) => setDrivingDischargePowerW(e.target.value)}
+                className="form-input"
+                min="0"
+                placeholder="Driving discharge power (W)"
+                aria-label="Driving discharge power"
+              />
+            </div>
+            <button
+              onClick={handleAddEVSchedule}
+              disabled={controlLoading}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem', marginTop: '0.5rem', width: '100%' }}
+            >
+              Add Driving Schedule
+            </button>
+            <button
+              onClick={handleEVDrivingScheduleSave}
+              disabled={controlLoading || !isScheduleValid}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.75rem', marginTop: '0.5rem', width: '100%' }}
+            >
+              Save Driving Schedule
+            </button>
+            {!state.isPluggedIn && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#9ca3af'
+              }}>
+                EV must be plugged in to start charging.
+              </div>
+            )}
+            {state.powerW < 0 && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#9ca3af'
+              }}>
+                Driving session is active, so charging is paused.
+              </div>
+            )}
+            {controlLoading && (
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '0.5rem',
+                fontSize: '0.75rem',
+                color: '#6b7280'
+              }}>
+                Sending command...
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* EV Charger Controls */}
       {currentDevice.deviceType === DeviceType.EVCharger && (

@@ -181,6 +181,31 @@ Authorization: Bearer [access_token]
 }
 ```
 
+**EV Details Notes:**
+- EV `configuration` now exposes `drivingSchedules` as an array of recurring daily windows
+- EV `configuration.drivingDischargePowerW` remains a single EV-wide discharge value shared by all schedules
+- EV responses include `isEvAtHome`, which is `false` while any configured driving schedule is active
+
+**Example EV Configuration:**
+```json
+{
+  "batteryCapacityKwh": 60,
+  "maxChargePowerW": 11000,
+  "efficiency": 0.92,
+  "drivingSchedules": [
+    {
+      "startTime": "08:00",
+      "endTime": "09:00"
+    },
+    {
+      "startTime": "17:30",
+      "endTime": "18:15"
+    }
+  ],
+  "drivingDischargePowerW": 8000
+}
+```
+
 ### Get Device Status
 
 **Endpoint:** `GET /api/zerofy/devices/{deviceId}/status`
@@ -209,6 +234,36 @@ Authorization: Bearer [access_token]
     "lastUpdate": "2024-01-15T10:30:00Z",
     "metadata": {
       "deviceType": "solarInverter",
+      "simulated": true
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+**EV Status Notes:**
+- EV `status`, `details`, and `list` payloads may include `isEvAtHome`
+- `isEvAtHome` is derived from the configured driving schedules and the dwelling timezone
+
+**EV Status Example:**
+```json
+{
+  "success": true,
+  "data": {
+    "deviceId": "dev_ev_123456789",
+    "deviceType": "ev",
+    "status": "online",
+    "power": -7000,
+    "energy": 12.4,
+    "batteryLevel": 62,
+    "isCharging": false,
+    "isEvAtHome": false,
+    "lastUpdate": "2024-01-15T10:30:00Z",
+    "metadata": {
+      "deviceType": "ev",
       "simulated": true
     }
   },
@@ -248,7 +303,7 @@ Authorization: Bearer [access_token]
 
 **Endpoint:** `POST /api/zerofy/devices/{deviceId}/control`
 
-**Description:** Control device behavior. Supports battery charge/discharge modes and appliance on/off states.
+**Description:** Control device behavior. Supports battery charge/discharge modes, appliance on/off states, and hot water storage boost control.
 
 **Required Scope:** `device:control` (automatically granted with device:status)
 
@@ -326,6 +381,78 @@ Content-Type: application/json
 }
 ```
 
+### 6. EV Control
+
+**Endpoint:** `POST /api/zerofy/devices/{deviceId}/control/ev`
+
+**Description:** Start or stop charging for plain `ev` devices.
+
+**Required Scope:** `device:control` (automatically granted with device:status)
+
+**Command Format:**
+```json
+{
+  "action": "start"
+}
+```
+
+**Supported Actions:**
+- `start`: Mark the EV as charging
+- `stop`: Stop EV charging and set current charging power to `0`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "EV control command executed successfully",
+    "deviceId": "dev_ev_123456789",
+    "command": {
+      "action": "start"
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+### 7. EV Charger Control
+
+**Endpoint:** `POST /api/zerofy/devices/{deviceId}/control/evcharger`
+
+**Description:** Start or stop charging and optionally set target power for `evCharger` devices.
+
+**Required Scope:** `device:control` (automatically granted with device:status)
+
+**Command Format:**
+```json
+{
+  "isCharging": true,
+  "targetPowerW": 7400
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "EV charger control command executed successfully",
+    "deviceId": "dev_charger_123456789",
+    "command": {
+      "isCharging": true,
+      "targetPowerW": 7400
+    }
+  },
+  "meta": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
 ## Device Types and Capabilities
 
 ### Device Types
@@ -335,6 +462,9 @@ Content-Type: application/json
 | `solarInverter` | `solar` | Solar photovoltaic inverter |
 | `battery` | `battery` | Battery energy storage system |
 | `appliance` | `appliance` | Smart controllable appliance |
+| `hotWaterStorage` | `hotWaterStorage` | Hot water tank with boost control |
+| `ev` | `ev` | Electric vehicle battery and charging session state |
+| `evCharger` | `evCharger` | Electric vehicle charger actuator |
 | `meter` | `meter` | Smart electricity meter |
 
 ### Device Capabilities
@@ -344,6 +474,9 @@ Content-Type: application/json
 | `solar` | `power_generation`, `energy_monitoring` |
 | `battery` | `energy_storage`, `power_control`, `soc_monitoring` |
 | `appliance` | `power_control`, `energy_monitoring`, `remote_control` |
+| `hotWaterStorage` | `water_heating`, `boost_control`, `temperature_monitoring` |
+| `ev` | `soc_monitoring`, `charging_status`, `charging_control`, `energy_monitoring` |
+| `evCharger` | `charging_control`, `power_control`, `energy_monitoring` |
 | `meter` | `power_monitoring`, `energy_monitoring`, `bidirectional_flow` |
 
 ### Device Status Values
@@ -354,6 +487,8 @@ Content-Type: application/json
 | `energy` | Energy generated/consumed today | Kilowatt-hours (kWh) | All devices |
 | `batteryLevel` | Battery charge level | Percentage (%) | Battery devices |
 | `isOn` | On/off state | Boolean | Appliance devices |
+| `isCharging` | Active charging state | Boolean | `ev`, `evCharger` |
+| `targetPowerW` | Requested charging power | Watts (W) | `evCharger` |
 | `status` | Device connectivity status | `online`, `offline`, `error` | All devices |
 
 ## Error Handling
@@ -497,6 +632,47 @@ curl -X POST http://localhost:3001/api/zerofy/devices/dev_987654321/control \
   -H "Content-Type: application/json" \
   -d '{
     "isOn": false
+  }'
+```
+
+### 6. Control EV
+
+```bash
+# Start EV charging
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_ev_123456789/control/ev \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "start"
+  }'
+
+# Stop EV charging
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_ev_123456789/control/ev \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "stop"
+  }'
+```
+
+### 7. Control EV Charger
+
+```bash
+# Start EV charger at 7.4kW
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_charger_123456789/control/evcharger \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isCharging": true,
+    "targetPowerW": 7400
+  }'
+
+# Stop EV charger
+curl -X POST http://localhost:3001/api/zerofy/devices/dev_charger_123456789/control/evcharger \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isCharging": false
   }'
 ```
 
