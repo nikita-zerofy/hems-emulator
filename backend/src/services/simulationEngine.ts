@@ -608,9 +608,11 @@ export class SimulationEngine {
     for (const meter of devicesByType.meter) {
       const config = meter.config as MeterConfig;
       const currentState = meter.state as MeterState;
-      const virtualInverterPowerW = this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
+      const productionMeterPowerW = currentState.isOnline
+        ? this.calculateVirtualInverterPower(config.virtualInverter, weatherData)
+        : 0;
       const measuredPowerW = config.role === 'production'
-        ? virtualInverterPowerW
+        ? productionMeterPowerW
         : this.getGridMeterPower(config.type, energyFlows.netGridPower);
       const importPowerW = Math.max(0, measuredPowerW);
       const exportPowerW = config.role === 'production'
