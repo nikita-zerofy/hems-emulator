@@ -87,6 +87,13 @@ export class SimulationEngine {
   }
 
   /**
+   * Return whether the simulation loop is currently active.
+   */
+  isActive(): boolean {
+    return this.isRunning;
+  }
+
+  /**
    * Main simulation cycle - runs periodically
    */
   private async runSimulationCycle(): Promise<void> {
@@ -152,11 +159,18 @@ export class SimulationEngine {
 
     // Group devices by type for easier processing
     const devicesByType = this.groupDevicesByType(devices);
+    const resolvedApplianceStates = this.resolveApplianceCycleStates(
+      devicesByType.appliance,
+      weatherData
+    );
 
     // Calculate current solar generation
     const solarPowerW = this.calculateSolarGeneration(devicesByType.solarInverter, weatherData);
     const meterVirtualProductionW = this.calculateMeterVirtualProduction(devicesByType.meter, weatherData);
-    const applianceProductionW = this.calculateApplianceProduction(devicesByType.appliance, weatherData);
+    const applianceProductionW = this.calculateApplianceProduction(
+      devicesByType.appliance,
+      resolvedApplianceStates
+    );
     const totalProductionW = solarPowerW + meterVirtualProductionW + applianceProductionW;
 
     // Calculate household load (appliances + hot water + phantom load)
@@ -165,7 +179,8 @@ export class SimulationEngine {
       devicesByType.hotWaterStorage,
       devicesByType.ev,
       devicesByType.evCharger,
-      dwelling.timeZone
+      dwelling.timeZone,
+      resolvedApplianceStates
     );
 
     // Execute energy flow logic
@@ -180,7 +195,8 @@ export class SimulationEngine {
       devicesByType,
       energyFlows,
       weatherData,
-      dwelling.timeZone
+      dwelling.timeZone,
+      resolvedApplianceStates
     );
 
     return {
@@ -227,20 +243,21 @@ export class SimulationEngine {
     hotWaterStorages: Device[] = [],
     evs: Device[] = [],
     evChargers: Device[] = [],
-    timeZone: string
+    timeZone: string,
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
   ): number {
     let totalLoadW = 0;
 
     // Sum power from all "on" appliances
     for (const appliance of appliances) {
       const config = appliance.config as ApplianceConfig;
-      const state = appliance.state as ApplianceState;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
       if (config.role === 'productionMeter') {
         continue;
       }
 
-      if (state.isOn && state.isOnline) {
-        totalLoadW += state.powerW;
+      if (resolvedState?.isOn && resolvedState.isOnline) {
+        totalLoadW += resolvedState.powerW;
       }
     }
 
@@ -304,24 +321,61 @@ export class SimulationEngine {
   /**
    * Calculate total production from smartplug/appliance production meters.
    */
-  private calculateApplianceProduction(appliances: Device[], weatherData: WeatherData): number {
+  private calculateApplianceProduction(
+    appliances: Device[],
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
+  ): number {
     let totalProductionW = 0;
 
     for (const appliance of appliances) {
       const config = appliance.config as ApplianceConfig;
-      const state = appliance.state as ApplianceState;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
 
       if (config.role !== 'productionMeter') {
         continue;
       }
 
-      if (state.isOn && state.isOnline) {
-        const virtualInverterPowerW = this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
-        totalProductionW += virtualInverterPowerW;
+      if (resolvedState?.isOn && resolvedState.isOnline) {
+        totalProductionW += resolvedState.powerW;
       }
     }
 
     return totalProductionW;
+  }
+
+  /**
+   * Resolve appliance on/off state and power once per simulation cycle.
+   */
+  private resolveApplianceCycleStates(
+    appliances: Device[],
+    weatherData: WeatherData
+  ): Map<string, ResolvedApplianceCycleState> {
+    const resolvedStates = new Map<string, ResolvedApplianceCycleState>();
+
+    for (const appliance of appliances) {
+      const currentState = appliance.state as ApplianceState;
+      const applianceConfig = appliance.config as ApplianceConfig;
+
+      let newIsOn = currentState.isOn;
+
+      if (!applianceConfig.isControllable) {
+        const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
+        newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      }
+
+      const virtualInverterPowerW = this.calculateVirtualInverterPower(applianceConfig.virtualInverter, weatherData);
+      const activePowerW = applianceConfig.role === 'productionMeter'
+        ? virtualInverterPowerW
+        : (applianceConfig.powerW ?? 0);
+
+      resolvedStates.set(appliance.deviceId, {
+        isOn: newIsOn,
+        isOnline: currentState.isOnline,
+        powerW: newIsOn ? activePowerW : 0
+      });
+    }
+
+    return resolvedStates;
   }
 
   /**
@@ -497,7 +551,8 @@ export class SimulationEngine {
     devicesByType: DevicesByType,
     energyFlows: EnergyFlows,
     weatherData: WeatherData,
-    timeZone: string
+    timeZone: string,
+    resolvedApplianceStates: Map<string, ResolvedApplianceCycleState>
   ): Promise<Device[]> {
     const updates: Array<{ deviceId: string; state: unknown }> = [];
     // const now = DateTime.now();
@@ -592,31 +647,18 @@ export class SimulationEngine {
     // Update appliances
     for (const appliance of devicesByType.appliance) {
       const currentState = appliance.state as ApplianceState;
-      const applianceConfig = appliance.config as ApplianceConfig;
+      const resolvedState = resolvedApplianceStates.get(appliance.deviceId);
 
-      // For controllable appliances, don't simulate random behavior - respect manual control
-      // For non-controllable appliances, simulate some random on/off behavior for demo
-      let newIsOn = currentState.isOn;
-      
-      if (!applianceConfig.isControllable) {
-        // Random chance to change state for non-controllable appliances
-        const shouldToggle = Math.random() < 0.05; // 5% chance per cycle
-        newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
+      if (!resolvedState) {
+        continue;
       }
-
-      // Update power based on on/off state and configured power.
-      const virtualInverterPowerW = this.calculateVirtualInverterPower(applianceConfig.virtualInverter, weatherData);
-      const activePowerW = applianceConfig.role === 'productionMeter'
-        ? virtualInverterPowerW
-        : (applianceConfig.powerW ?? 0);
-      const actualPowerW = newIsOn ? activePowerW : 0;
 
       const newState: ApplianceState = {
         ...currentState,
-        isOn: newIsOn,
-        powerW: actualPowerW,
-        energyTodayKwh: newIsOn
-          ? this.updateDailyEnergy(currentState.energyTodayKwh, actualPowerW)
+        isOn: resolvedState.isOn,
+        powerW: resolvedState.powerW,
+        energyTodayKwh: resolvedState.isOn
+          ? this.updateDailyEnergy(currentState.energyTodayKwh, resolvedState.powerW)
           : currentState.energyTodayKwh
       };
 
@@ -920,6 +962,12 @@ type DevicesByType = {
   hotWaterStorage: Device[];
   ev: Device[];
   evCharger: Device[];
+};
+
+type ResolvedApplianceCycleState = {
+  isOn: boolean;
+  isOnline: boolean;
+  powerW: number;
 };
 
 type EnergyFlows = {

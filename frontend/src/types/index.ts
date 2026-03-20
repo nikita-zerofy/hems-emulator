@@ -196,6 +196,35 @@ export interface SimulationUpdate {
   weatherData?: WeatherData;
 }
 
+export type DeviceHistoryDatapoint = {
+  deviceId: string;
+  dwellingId: string;
+  deviceType: DeviceType;
+  recordedAt: string;
+  powerW: number;
+  soc?: number | null;
+  isCharging?: boolean | null;
+  temperatureC?: number | null;
+};
+
+export type DeviceHistorySeries = {
+  deviceId: string;
+  deviceType: DeviceType;
+  deviceName?: string | null;
+  datapoints: DeviceHistoryDatapoint[];
+};
+
+export type DailyEnergySummary = {
+  dwellingId: string;
+  summaryDate: string;
+  solarProductionKwh: number;
+  gridImportKwh: number;
+  gridExportKwh: number;
+  batteryChargeKwh: number;
+  batteryDischargeKwh: number;
+  householdConsumptionKwh: number;
+};
+
 // Form data types
 export interface LoginForm {
   email: string;
