@@ -13,6 +13,7 @@ dotenv.config();
 // Import services and routes
 import {testConnection} from './config/database';
 import {SimulationEngine} from './services/simulationEngine';
+import {SchedulerService} from './services/schedulerService';
 import authRoutes from './routes/auth';
 import dwellingRoutes from './routes/dwellings';
 import deviceRoutes from './routes/devices';
@@ -143,6 +144,8 @@ const gracefulShutdown = (signal: string) => {
   // Stop simulation engine
   const simulationEngine = SimulationEngine.getInstance();
   simulationEngine.stop();
+  const schedulerService = SchedulerService.getInstance();
+  schedulerService.stop();
 
   // Close server
   server.close(() => {
@@ -185,6 +188,10 @@ async function startServer() {
     // Start simulation engine
     const simulationEngine = SimulationEngine.getInstance();
     simulationEngine.start();
+
+    // Start scheduler service (history recording, summary generation, cleanup)
+    const schedulerService = SchedulerService.getInstance();
+    schedulerService.start();
 
   } catch (error) {
     logger.error({error}, 'Failed to start server');

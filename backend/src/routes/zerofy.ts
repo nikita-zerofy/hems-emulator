@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ZerofyService } from '../services/zerofyService';
+import { DeviceHistoryService } from '../services/deviceHistoryService';
 import { authenticateZerofyToken } from '../middleware/zerofyAuth';
 import { ZerofyApiResponse, ZerofyAuth, ZerofyBatteryControlSchema, ZerofyApplianceControlSchema, ZerofyHotWaterControlSchema, ZerofyEVChargerControlSchema } from '../types/zerofy';
 import { z } from 'zod';
@@ -220,6 +221,94 @@ router.get('/devices/:deviceId/status',
       };
 
       return res.status(500).json(response);
+    }
+  }
+);
+
+/**
+ * GET /api/zerofy/devices/:deviceId/history
+ * Get historical datapoints for a specific device by datetime range
+ */
+router.get('/devices/:deviceId/history',
+  authenticateZerofyToken,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.zerofyUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const { deviceId } = req.params;
+      const querySchema = z.object({
+        from: z.string().datetime(),
+        to: z.string().datetime(),
+        limit: z.coerce.number().int().min(1).max(1000).default(200)
+      });
+      const { from, to, limit } = querySchema.parse(req.query);
+
+      const device = await ZerofyService.getDevice(deviceId, req.zerofyUser.userId);
+      if (!device) {
+        const response: ZerofyApiResponse = {
+          success: false,
+          error: {
+            code: 'DEVICE_NOT_FOUND',
+            message: 'Device not found or access denied'
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        };
+        return res.status(404).json(response);
+      }
+
+      const datapoints = await DeviceHistoryService.getDeviceHistory(
+        deviceId,
+        new Date(from),
+        new Date(to),
+        limit
+      );
+
+      const response: ZerofyApiResponse = {
+        success: true,
+        data: {
+          deviceId,
+          deviceType: device.deviceType,
+          datapoints: datapoints.map((datapoint) => ({
+            recordedAt: datapoint.recordedAt,
+            powerW: datapoint.powerW,
+            soc: datapoint.soc ?? undefined,
+            isCharging: datapoint.isCharging ?? undefined,
+            temperatureC: datapoint.temperatureC ?? undefined
+          }))
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(200).json(response);
+    } catch (error) {
+      logger.error({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.zerofyUser?.userId,
+        deviceId: req.params.deviceId,
+        query: req.query
+      }, 'Zerofy API: Failed to fetch device history');
+
+      const response: ZerofyApiResponse = {
+        success: false,
+        error: {
+          code: 'DEVICE_HISTORY_FETCH_FAILED',
+          message: error instanceof Error ? error.message : 'Failed to fetch device history'
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          version: '1.0.0'
+        }
+      };
+
+      return res.status(400).json(response);
     }
   }
 );

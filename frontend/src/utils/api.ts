@@ -12,10 +12,13 @@ import {
   ApplianceControlCommand,
   CreateDeviceForm,
   HotWaterStorageControlCommand,
-  EVChargerControlCommand 
+  EVChargerControlCommand,
+  DeviceHistorySeries,
+  DailyEnergySummary
 } from '../types';
 
-const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
+// const API_BASE_URL = 'https://emulator-187591119525.europe-west1.run.app';
+const API_BASE_URL = 'http://localhost:3001';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -95,6 +98,30 @@ class ApiClient {
     }
     
     return response.data.data;
+  }
+
+  async getDwellingHistory(dwellingId: string, from: string, to: string): Promise<DeviceHistorySeries[]> {
+    const response = await this.client.get<ApiResponse<DeviceHistorySeries[]>>(`/dwellings/${dwellingId}/history`, {
+      params: { from, to }
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch dwelling history');
+    }
+
+    return response.data.data || [];
+  }
+
+  async getDwellingEnergySummary(dwellingId: string, from: string, to: string): Promise<DailyEnergySummary[]> {
+    const response = await this.client.get<ApiResponse<DailyEnergySummary[]>>(`/dwellings/${dwellingId}/energy-summary`, {
+      params: { from, to }
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch dwelling energy summary');
+    }
+
+    return response.data.data || [];
   }
 
   async createDwelling(data: CreateDwellingForm): Promise<Dwelling> {

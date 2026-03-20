@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { DwellingService } from '../services/dwellingService';
 import { DeviceService } from '../services/deviceService';
+import { DeviceHistoryService } from '../services/deviceHistoryService';
 import { authenticateToken } from '../middleware/auth';
 import { ApiResponse, LocationSchema } from '../types';
 import { z } from 'zod';
@@ -14,6 +15,14 @@ router.use(authenticateToken);
 const CreateDwellingSchema = z.object({
   timeZone: z.string(),
   location: LocationSchema
+});
+const HistoryQuerySchema = z.object({
+  from: z.string().datetime(),
+  to: z.string().datetime()
+});
+const SummaryQuerySchema = z.object({
+  from: z.string(),
+  to: z.string()
 });
 
 /**
@@ -138,6 +147,88 @@ router.get('/:dwellingId', async (req: Request, res: Response) => {
     };
     
     return res.status(500).json(response);
+  }
+});
+
+/**
+ * GET /dwellings/:dwellingId/history
+ * Get grouped device history for a dwelling by datetime range
+ */
+router.get('/:dwellingId/history', async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      } satisfies ApiResponse);
+    }
+
+    const { dwellingId } = req.params;
+    const { from, to } = HistoryQuerySchema.parse(req.query);
+    const dwelling = await DwellingService.getDwelling(dwellingId, req.user.userId);
+
+    if (!dwelling) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dwelling not found'
+      } satisfies ApiResponse);
+    }
+
+    const history = await DeviceHistoryService.getDwellingHistory(
+      dwellingId,
+      new Date(from),
+      new Date(to)
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: history
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Get dwelling history error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to retrieve dwelling history'
+    } satisfies ApiResponse);
+  }
+});
+
+/**
+ * GET /dwellings/:dwellingId/energy-summary
+ * Get daily energy summary data for a dwelling by date range
+ */
+router.get('/:dwellingId/energy-summary', async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      } satisfies ApiResponse);
+    }
+
+    const { dwellingId } = req.params;
+    const { from, to } = SummaryQuerySchema.parse(req.query);
+    const dwelling = await DwellingService.getDwelling(dwellingId, req.user.userId);
+
+    if (!dwelling) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dwelling not found'
+      } satisfies ApiResponse);
+    }
+
+    const summary = await DeviceHistoryService.getDailySummaries(dwellingId, from, to);
+
+    return res.status(200).json({
+      success: true,
+      data: summary
+    } satisfies ApiResponse);
+  } catch (error) {
+    console.error('Get dwelling energy summary error:', error);
+    return res.status(400).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to retrieve dwelling energy summary'
+    } satisfies ApiResponse);
   }
 });
 

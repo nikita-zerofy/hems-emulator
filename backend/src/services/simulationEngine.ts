@@ -85,6 +85,13 @@ export class SimulationEngine {
   }
 
   /**
+   * Return whether the simulation loop is currently active.
+   */
+  isActive(): boolean {
+    return this.isRunning;
+  }
+
+  /**
    * Main simulation cycle - runs periodically
    */
   private async runSimulationCycle(): Promise<void> {

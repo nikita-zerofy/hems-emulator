@@ -253,6 +253,41 @@ export const SimulationUpdateSchema = z.object({
 
 export type SimulationUpdate = z.infer<typeof SimulationUpdateSchema>;
 
+export const DeviceHistoryDatapointSchema = z.object({
+  deviceId: z.string().uuid(),
+  dwellingId: z.string().uuid(),
+  deviceType: z.nativeEnum(DeviceType),
+  recordedAt: z.string().datetime(),
+  powerW: z.number(),
+  soc: z.number().nullable().optional(),
+  isCharging: z.boolean().nullable().optional(),
+  temperatureC: z.number().nullable().optional()
+});
+
+export type DeviceHistoryDatapoint = z.infer<typeof DeviceHistoryDatapointSchema>;
+
+export const DeviceHistorySeriesSchema = z.object({
+  deviceId: z.string().uuid(),
+  deviceType: z.nativeEnum(DeviceType),
+  deviceName: z.string().nullable().optional(),
+  datapoints: z.array(DeviceHistoryDatapointSchema)
+});
+
+export type DeviceHistorySeries = z.infer<typeof DeviceHistorySeriesSchema>;
+
+export const DailyEnergySummarySchema = z.object({
+  dwellingId: z.string().uuid(),
+  summaryDate: z.string(),
+  solarProductionKwh: z.number(),
+  gridImportKwh: z.number(),
+  gridExportKwh: z.number(),
+  batteryChargeKwh: z.number(),
+  batteryDischargeKwh: z.number(),
+  householdConsumptionKwh: z.number()
+});
+
+export type DailyEnergySummary = z.infer<typeof DailyEnergySummarySchema>;
+
 // API Response types
 export type ApiResponse<T = unknown> = {
   success: boolean;

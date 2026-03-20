@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, MapPin, Clock, Wifi, WifiOff } from 'lucide-react';
 import { apiClient } from '../utils/api';
-import { Dwelling, Device } from '../types';
+import { Dwelling, Device, DeviceHistorySeries, DailyEnergySummary } from '../types';
 import DeviceCard from '../components/DeviceCard';
 import CreateDeviceModal from '../components/CreateDeviceModal';
+import DeviceHistoryChart from '../components/DeviceHistoryChart';
+import DwellingEnergyOverview from '../components/DwellingEnergyOverview';
 import { useDwellingWebSocket } from '../hooks/useWebSocket';
+
+type DetailsTab = 'live' | 'history';
 
 const DwellingDetails: React.FC = () => {
   const { dwellingId } = useParams<{ dwellingId: string }>();
@@ -14,6 +18,11 @@ const DwellingDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailsTab>('live');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historySeries, setHistorySeries] = useState<DeviceHistorySeries[]>([]);
+  const [dailySummary, setDailySummary] = useState<DailyEnergySummary[]>([]);
   
   // WebSocket connection for real-time updates
   const { isConnected, lastUpdate } = useDwellingWebSocket(dwellingId);
@@ -58,6 +67,36 @@ const DwellingDetails: React.FC = () => {
       setDevices(lastUpdate.devices);
     }
   }, [lastUpdate]);
+
+  useEffect(() => {
+    if (!dwellingId || activeTab !== 'history') {
+      return;
+    }
+
+    const loadHistory = async () => {
+      try {
+        setHistoryLoading(true);
+        setHistoryError('');
+
+        const now = new Date();
+        const twoDaysAgo = new Date(now.getTime() - (2 * 24 * 60 * 60 * 1000));
+
+        const [history, summary] = await Promise.all([
+          apiClient.getDwellingHistory(dwellingId, twoDaysAgo.toISOString(), now.toISOString()),
+          apiClient.getDwellingEnergySummary(dwellingId, twoDaysAgo.toISOString().slice(0, 10), now.toISOString().slice(0, 10))
+        ]);
+
+        setHistorySeries(history);
+        setDailySummary(summary);
+      } catch (err) {
+        setHistoryError(err instanceof Error ? err.message : 'Failed to load history');
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+
+    void loadHistory();
+  }, [activeTab, dwellingId]);
 
   if (loading) {
     return (
@@ -129,41 +168,87 @@ const DwellingDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Devices Section */}
-      <div className="card">
-        <div className="card-header">
-          <h2 className="card-title">
-            Devices ({devices.length})
-          </h2>
-        </div>
+      <div className="history-tabs">
+        <button
+          type="button"
+          className={`btn ${activeTab === 'live' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('live')}
+        >
+          Live
+        </button>
+        <button
+          type="button"
+          className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('history')}
+        >
+          History
+        </button>
+      </div>
 
-        <div className="card-content">
-          {devices.length === 0 ? (
-            <div className="empty-state">
-              <div style={{ fontSize: '3rem', opacity: 0.3, marginBottom: '1rem' }}>🏠</div>
-              <h3>No devices found</h3>
-              <p>Add devices to start simulating energy flows</p>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="btn btn-primary mt-3"
-              >
-                <Plus size={16} />
-                Add Your First Device
-              </button>
+      {activeTab === 'live' ? (
+        <div className="card">
+          <div className="card-header">
+            <h2 className="card-title">
+              Devices ({devices.length})
+            </h2>
+          </div>
+
+          <div className="card-content">
+            {devices.length === 0 ? (
+              <div className="empty-state">
+                <div style={{ fontSize: '3rem', opacity: 0.3, marginBottom: '1rem' }}>🏠</div>
+                <h3>No devices found</h3>
+                <p>Add devices to start simulating energy flows</p>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="btn btn-primary mt-3"
+                >
+                  <Plus size={16} />
+                  Add Your First Device
+                </button>
+              </div>
+            ) : (
+              <div className="device-grid">
+                {devices.map((device) => (
+                  <DeviceCard
+                    key={device.deviceId}
+                    device={device}
+                    onDeviceDeleted={handleDeviceDeleted}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="history-section">
+          {historyLoading ? (
+            <div className="loading">
+              <div className="spinner" />
             </div>
+          ) : historyError ? (
+            <div className="alert alert-error">{historyError}</div>
           ) : (
-            <div className="device-grid">
-              {devices.map((device) => (
-                <DeviceCard
-                  key={device.deviceId}
-                  device={device}
-                  onDeviceDeleted={handleDeviceDeleted}
-                />
-              ))}
-            </div>
+            <>
+              <DwellingEnergyOverview summaries={dailySummary} />
+              {historySeries.length === 0 ? (
+                <div className="card">
+                  <div className="empty-state">
+                    <h3>No history yet</h3>
+                    <p>History datapoints will appear after the scheduler records the next 15-minute snapshot.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="history-grid">
+                  {historySeries.map((series) => (
+                    <DeviceHistoryChart key={series.deviceId} series={series} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
-      </div>
+      )}
 
       {/* Create Device Modal */}
       {showCreateModal && dwellingId && (
