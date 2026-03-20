@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { apiClient } from '../utils/api';
-import { Device, DeviceType, CreateDeviceForm } from '../types';
+import { Device, DeviceType, CreateDeviceForm, ApplianceConfig, MeterConfig, VirtualInverterConfig } from '../types';
 
 interface CreateDeviceModalProps {
   dwellingId: string;
@@ -59,11 +59,23 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
         return {
           name: 'Electric Vehicle Charger',
           powerW: 7000,
-          isControllable: true
+          isControllable: true,
+          role: 'consumption',
+          virtualInverter: {
+            enabled: false,
+            kwPeak: 5,
+            efficiency: 0.85
+          }
         };
       case DeviceType.Meter:
         return {
-          type: 'bidirectional'
+          type: 'bidirectional',
+          role: 'grid',
+          virtualInverter: {
+            enabled: false,
+            kwPeak: 5,
+            efficiency: 0.85
+          }
         };
       case DeviceType.HotWaterStorage:
         return {
@@ -84,7 +96,7 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
     }
   };
 
-  const handleConfigChange = (key: string, value: string | number | boolean) => {
+  const handleConfigChange = (key: string, value: string | number | boolean | Record<string, unknown>) => {
     setFormData(prev => ({
       ...prev,
       config: {
@@ -92,6 +104,62 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
         [key]: value
       }
     }));
+  };
+
+  const handleVirtualInverterChange = (key: keyof VirtualInverterConfig, value: string | number | boolean) => {
+    const currentConfig = formData.config as { virtualInverter?: Partial<VirtualInverterConfig> };
+    const currentVirtualInverter = currentConfig.virtualInverter ?? { enabled: false, kwPeak: 5, efficiency: 0.85 };
+
+    handleConfigChange('virtualInverter', {
+      ...currentVirtualInverter,
+      [key]: value
+    });
+  };
+
+  const renderVirtualInverterFields = (virtualInverter?: Partial<VirtualInverterConfig>) => {
+    const currentVirtualInverter = virtualInverter ?? { enabled: false, kwPeak: 5, efficiency: 0.85 };
+    return (
+      <>
+        <div className="form-group">
+          <label className="form-label">Virtual Inverter</label>
+          <select
+            value={currentVirtualInverter.enabled ? 'true' : 'false'}
+            onChange={(e) => handleVirtualInverterChange('enabled', e.target.value === 'true')}
+            className="form-select"
+          >
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+        </div>
+        {currentVirtualInverter.enabled && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="form-label">Virtual Inverter Peak Power (kW)</label>
+              <input
+                type="number"
+                value={currentVirtualInverter.kwPeak ?? ''}
+                onChange={(e) => handleVirtualInverterChange('kwPeak', parseFloat(e.target.value) || 0)}
+                className="form-input"
+                step="0.1"
+                min="0"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Virtual Inverter Efficiency</label>
+              <input
+                type="number"
+                value={currentVirtualInverter.efficiency ?? ''}
+                onChange={(e) => handleVirtualInverterChange('efficiency', parseFloat(e.target.value) || 0)}
+                className="form-input"
+                step="0.01"
+                min="0"
+                max="1"
+              />
+            </div>
+          </div>
+        )}
+      </>
+    );
   };
 
   const renderConfigFields = () => {
@@ -255,7 +323,8 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
           </>
         );
 
-      case DeviceType.Appliance:
+      case DeviceType.Appliance: {
+        const applianceConfig = formData.config as Partial<ApplianceConfig>;
         return (
           <>
             <div className="form-group">
@@ -269,18 +338,32 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                 required
               />
             </div>
+            <div className="form-group">
+              <label className="form-label">Mode</label>
+              <select
+                value={applianceConfig.role ?? 'consumption'}
+                onChange={(e) => handleConfigChange('role', e.target.value)}
+                className="form-select"
+              >
+                <option value="consumption">Consumption</option>
+                <option value="productionMeter">Production Meter</option>
+              </select>
+            </div>
+            {applianceConfig.role === 'productionMeter' && renderVirtualInverterFields(applianceConfig.virtualInverter)}
             <div className="grid grid-cols-2 gap-4">
-              <div className="form-group">
-                <label className="form-label">Power Consumption (W)</label>
-                <input
-                  type="number"
-                  value={(formData.config as any).powerW || ''}
-                  onChange={(e) => handleConfigChange('powerW', parseInt(e.target.value) || 0)}
-                  className="form-input"
-                  min="0"
-                  required
-                />
-              </div>
+              {applianceConfig.role !== 'productionMeter' && (
+                <div className="form-group">
+                  <label className="form-label">Power Consumption (W)</label>
+                  <input
+                    type="number"
+                    value={applianceConfig.powerW ?? ''}
+                    onChange={(e) => handleConfigChange('powerW', parseInt(e.target.value) || 0)}
+                    className="form-input"
+                    min="0"
+                    required
+                  />
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Controllable</label>
                 <select
@@ -295,23 +378,43 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
             </div>
           </>
         );
+      }
 
-      case DeviceType.Meter:
+      case DeviceType.Meter: {
+        const meterConfig = formData.config as Partial<MeterConfig>;
         return (
-          <div className="form-group">
-            <label className="form-label">Meter Type</label>
-            <select
-              value={(formData.config as any).type || 'bidirectional'}
-              onChange={(e) => handleConfigChange('type', e.target.value)}
-              className="form-select"
-              required
-            >
-              <option value="bidirectional">Bidirectional (Import/Export)</option>
-              <option value="import">Import Only</option>
-              <option value="export">Export Only</option>
-            </select>
-          </div>
+          <>
+            <div className="form-group">
+              <label className="form-label">Meter Role</label>
+              <select
+                value={meterConfig.role ?? 'grid'}
+                onChange={(e) => handleConfigChange('role', e.target.value)}
+                className="form-select"
+                required
+              >
+                <option value="grid">Grid Meter</option>
+                <option value="production">Production Meter</option>
+              </select>
+            </div>
+            {meterConfig.role === 'production' && renderVirtualInverterFields(meterConfig.virtualInverter)}
+            {meterConfig.role !== 'production' && (
+              <div className="form-group">
+                <label className="form-label">Meter Type</label>
+                <select
+                  value={meterConfig.type ?? 'bidirectional'}
+                  onChange={(e) => handleConfigChange('type', e.target.value)}
+                  className="form-select"
+                  required
+                >
+                  <option value="bidirectional">Bidirectional (Import/Export)</option>
+                  <option value="import">Import Only</option>
+                  <option value="export">Export Only</option>
+                </select>
+              </div>
+            )}
+          </>
         );
+      }
       case DeviceType.HotWaterStorage:
         return (
           <>
@@ -493,7 +596,7 @@ const CreateDeviceModal: React.FC<CreateDeviceModalProps> = ({
                 <option value={DeviceType.Battery}>Battery</option>
                 <option value={DeviceType.EV}>EV</option>
                 <option value={DeviceType.EVCharger}>EV Charger</option>
-                <option value={DeviceType.Appliance}>Smart Appliance</option>
+                <option value={DeviceType.Appliance}>Smart Plug / Appliance</option>
                 <option value={DeviceType.Meter}>Smart Meter</option>
               <option value={DeviceType.HotWaterStorage}>Hot Water Storage</option>
               </select>

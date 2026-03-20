@@ -13,6 +13,7 @@ import {
   BatteryState,
   ApplianceConfig,
   ApplianceState,
+  MeterConfig,
   MeterState,
   HotWaterStorageState,
   HotWaterStorageConfig,
@@ -152,6 +153,9 @@ export class SimulationEngine {
 
     // Calculate current solar generation
     const solarPowerW = this.calculateSolarGeneration(devicesByType.solarInverter, weatherData);
+    const meterVirtualProductionW = this.calculateMeterVirtualProduction(devicesByType.meter, weatherData);
+    const applianceProductionW = this.calculateApplianceProduction(devicesByType.appliance, weatherData);
+    const totalProductionW = solarPowerW + meterVirtualProductionW + applianceProductionW;
 
     // Calculate household load (appliances + hot water + phantom load)
     const householdLoadW = this.calculateHouseholdLoad(
@@ -163,7 +167,7 @@ export class SimulationEngine {
 
     // Execute energy flow logic
     const energyFlows = this.calculateEnergyFlows(
-      solarPowerW,
+      totalProductionW,
       householdLoadW,
       devicesByType.battery[0] // Assume single battery for now
     );
@@ -172,7 +176,8 @@ export class SimulationEngine {
     const updatedDevices = await this.updateDeviceStates(
       devicesByType,
       energyFlows,
-      weatherData
+      weatherData,
+      totalProductionW
     );
 
     return {
@@ -224,7 +229,12 @@ export class SimulationEngine {
 
     // Sum power from all "on" appliances
     for (const appliance of appliances) {
+      const config = appliance.config as ApplianceConfig;
       const state = appliance.state as ApplianceState;
+      if (config.role === 'productionMeter') {
+        continue;
+      }
+
       if (state.isOn && state.isOnline) {
         totalLoadW += state.powerW;
       }
@@ -263,11 +273,74 @@ export class SimulationEngine {
   }
 
   /**
+   * Calculate total production from smartplug/appliance production meters.
+   */
+  private calculateMeterVirtualProduction(meters: Device[], weatherData: WeatherData): number {
+    let totalVirtualProductionW = 0;
+
+    for (const meter of meters) {
+      const config = meter.config as MeterConfig;
+      const state = meter.state as MeterState;
+
+      if (config.role !== 'production' || !state.isOnline) {
+        continue;
+      }
+
+      totalVirtualProductionW += this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
+    }
+
+    return totalVirtualProductionW;
+  }
+
+  /**
+   * Calculate total production from smartplug/appliance production meters.
+   */
+  private calculateApplianceProduction(appliances: Device[], weatherData: WeatherData): number {
+    let totalProductionW = 0;
+
+    for (const appliance of appliances) {
+      const config = appliance.config as ApplianceConfig;
+      const state = appliance.state as ApplianceState;
+
+      if (config.role !== 'productionMeter') {
+        continue;
+      }
+
+      if (state.isOn && state.isOnline) {
+        const virtualInverterPowerW = this.calculateVirtualInverterPower(config.virtualInverter, weatherData);
+        totalProductionW += virtualInverterPowerW;
+      }
+    }
+
+    return totalProductionW;
+  }
+
+  /**
+   * Calculate weather-driven virtual inverter output when enabled.
+   */
+  private calculateVirtualInverterPower(
+    virtualInverter: ApplianceConfig['virtualInverter'] | MeterConfig['virtualInverter'],
+    weatherData: WeatherData
+  ): number {
+    if (!virtualInverter?.enabled) {
+      return 0;
+    }
+
+    return WeatherService.calculateSolarPower(
+      weatherData.solarIrradianceWm2,
+      virtualInverter.kwPeak,
+      virtualInverter.efficiency,
+      weatherData.temperatureC,
+      weatherData.cloudCover
+    );
+  }
+
+  /**
    * Core energy flow calculation logic
    * Based on PowerEnergyFlowsCalculator principles
    */
   private calculateEnergyFlows(
-    solarPowerW: number,
+    productionPowerW: number,
     householdLoadW: number,
     battery?: Device
   ): EnergyFlows {
@@ -282,15 +355,15 @@ export class SimulationEngine {
       batteryPower: 0   // Positive = charging, negative = discharging
     };
 
-    let remainingSolar = solarPowerW;
+    let remainingProduction = productionPowerW;
     let remainingLoad = householdLoadW;
 
-    // 1. Solar power first goes to meet household load
-    flows.solarToLoad = Math.min(remainingSolar, remainingLoad);
-    remainingSolar -= flows.solarToLoad;
+    // 1. Production first goes to meet household load.
+    flows.solarToLoad = Math.min(remainingProduction, remainingLoad);
+    remainingProduction -= flows.solarToLoad;
     remainingLoad -= flows.solarToLoad;
 
-    // 2. Handle battery control modes and excess solar power
+    // 2. Handle battery control modes and excess production power.
     if (battery) {
       const batteryConfig = battery.config as BatteryConfig;
       const batteryState = battery.state as BatteryState;
@@ -310,17 +383,17 @@ export class SimulationEngine {
             
             const actualChargePowerW = Math.min(maxChargePowerW, maxChargeByCapacityW);
             
-            if (actualChargePowerW <= remainingSolar) {
+            if (actualChargePowerW <= remainingProduction) {
               flows.solarToBattery = actualChargePowerW;
               flows.batteryPower = actualChargePowerW;
-              remainingSolar -= actualChargePowerW;
+              remainingProduction -= actualChargePowerW;
             } else {
               // Need to import from grid to meet force charge target
-              flows.solarToBattery = remainingSolar;
-              flows.gridToBattery = actualChargePowerW - remainingSolar;
+              flows.solarToBattery = remainingProduction;
+              flows.gridToBattery = actualChargePowerW - remainingProduction;
               flows.batteryPower = actualChargePowerW;
               flows.netGridPower += flows.gridToBattery;
-              remainingSolar = 0;
+              remainingProduction = 0;
             }
           }
         }
@@ -347,28 +420,28 @@ export class SimulationEngine {
           flows.batteryPower = 0;
         }
         // Handle auto mode (normal logic)
-        else if (controlMode === 'auto' && remainingSolar > 0 && batteryState.batteryLevel < batteryConfig.maxSoc) {
+        else if (controlMode === 'auto' && remainingProduction > 0 && batteryState.batteryLevel < batteryConfig.maxSoc) {
           const maxChargePowerW = batteryConfig.maxChargePowerW;
           const availableCapacityKwh = batteryConfig.capacityKwh * (batteryConfig.maxSoc - batteryState.batteryLevel);
           const maxChargeByCapacityW = availableCapacityKwh * 1000 * 4;
 
           const actualChargePowerW = Math.min(
-            remainingSolar,
+            remainingProduction,
             maxChargePowerW,
             maxChargeByCapacityW
           );
 
           flows.solarToBattery = actualChargePowerW;
           flows.batteryPower = actualChargePowerW;
-          remainingSolar -= actualChargePowerW;
+          remainingProduction -= actualChargePowerW;
         }
       }
     }
 
-    // 3. Remaining solar power goes to grid (export)
-    if (remainingSolar > 0) {
-      flows.solarToGrid = remainingSolar;
-      flows.netGridPower -= remainingSolar; // Negative for export
+    // 3. Remaining production power goes to grid (export).
+    if (remainingProduction > 0) {
+      flows.solarToGrid = remainingProduction;
+      flows.netGridPower -= remainingProduction; // Negative for export
     }
 
     // 4. Handle remaining load
@@ -414,7 +487,8 @@ export class SimulationEngine {
   private async updateDeviceStates(
     devicesByType: DevicesByType,
     energyFlows: EnergyFlows,
-    weatherData: WeatherData
+    weatherData: WeatherData,
+    totalProductionW: number
   ): Promise<Device[]> {
     const updates: Array<{ deviceId: string; state: unknown }> = [];
     // const now = DateTime.now();
@@ -466,26 +540,38 @@ export class SimulationEngine {
       updates.push({deviceId: battery.deviceId, state: newState});
     }
 
-    // Update meter
-    if (devicesByType.meter.length > 0) {
-      const meter = devicesByType.meter[0];
+    // Update meters
+    for (const meter of devicesByType.meter) {
+      const config = meter.config as MeterConfig;
       const currentState = meter.state as MeterState;
+      const measuredPowerW = config.role === 'production'
+        ? Math.max(0, totalProductionW)
+        : this.getGridMeterPower(config.type, energyFlows.netGridPower);
+      const importPowerW = Math.max(0, measuredPowerW);
+      const exportPowerW = config.role === 'production'
+        ? Math.max(0, measuredPowerW)
+        : Math.max(0, -measuredPowerW);
 
       const newState: MeterState = {
         ...currentState,
-        powerW: Math.round(energyFlows.netGridPower),
-        energyImportTodayKwh: energyFlows.netGridPower > 0
-          ? this.updateDailyEnergy(currentState.energyImportTodayKwh, energyFlows.netGridPower)
-          : currentState.energyImportTodayKwh,
-        energyExportTodayKwh: energyFlows.netGridPower < 0
-          ? this.updateDailyEnergy(currentState.energyExportTodayKwh, -energyFlows.netGridPower)
+        powerW: Math.round(measuredPowerW),
+        energyImportTodayKwh: config.role === 'production'
+          ? currentState.energyImportTodayKwh
+          : importPowerW > 0
+            ? this.updateDailyEnergy(currentState.energyImportTodayKwh, importPowerW)
+            : currentState.energyImportTodayKwh,
+        energyExportTodayKwh: exportPowerW > 0
+          ? this.updateDailyEnergy(currentState.energyExportTodayKwh, exportPowerW)
           : currentState.energyExportTodayKwh,
-        totalEnergyImportKwh: energyFlows.netGridPower > 0
-          ? currentState.totalEnergyImportKwh + (energyFlows.netGridPower / 1000 / 120)
-          : currentState.totalEnergyImportKwh,
-        totalEnergyExportKwh: energyFlows.netGridPower < 0
-          ? currentState.totalEnergyExportKwh + (-energyFlows.netGridPower / 1000 / 120)
-          : currentState.totalEnergyExportKwh
+        totalEnergyImportKwh: config.role === 'production'
+          ? currentState.totalEnergyImportKwh
+          : importPowerW > 0
+            ? currentState.totalEnergyImportKwh + (importPowerW / 1000 / 120)
+            : currentState.totalEnergyImportKwh,
+        totalEnergyExportKwh: exportPowerW > 0
+          ? currentState.totalEnergyExportKwh + (exportPowerW / 1000 / 120)
+          : currentState.totalEnergyExportKwh,
+        isOnline: currentState.isOnline
       };
 
       updates.push({deviceId: meter.deviceId, state: newState});
@@ -506,8 +592,12 @@ export class SimulationEngine {
         newIsOn = shouldToggle ? !currentState.isOn : currentState.isOn;
       }
 
-      // Update power based on on/off state and configured power
-      const actualPowerW = newIsOn ? applianceConfig.powerW : 0;
+      // Update power based on on/off state and configured power.
+      const virtualInverterPowerW = this.calculateVirtualInverterPower(applianceConfig.virtualInverter, weatherData);
+      const activePowerW = applianceConfig.role === 'productionMeter'
+        ? virtualInverterPowerW
+        : (applianceConfig.powerW ?? 0);
+      const actualPowerW = newIsOn ? activePowerW : 0;
 
       const newState: ApplianceState = {
         ...currentState,
@@ -632,6 +722,21 @@ export class SimulationEngine {
     // TODO: Implement proper daily reset logic based on timezone
     // For now, just accumulate
     return currentDailyKwh + energyIncrementKwh;
+  }
+
+  /**
+   * Clamp grid meter readings to the configured meter type.
+   */
+  private getGridMeterPower(type: MeterConfig['type'], netGridPower: number): number {
+    if (type === 'import') {
+      return Math.max(0, netGridPower);
+    }
+
+    if (type === 'export') {
+      return Math.min(0, netGridPower);
+    }
+
+    return netGridPower;
   }
 
   /**
