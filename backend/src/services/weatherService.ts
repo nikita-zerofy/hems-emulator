@@ -1,86 +1,179 @@
 import axios from 'axios';
+import {DateTime} from 'luxon';
 import { WeatherData, Location } from '../types';
 import { logger } from '../config/logger';
 
 const OPEN_METEO_API_URL = 'https://api.open-meteo.com/v1/forecast';
+const WeatherCacheTtlMs = 60 * 60 * 1000;
+const WeatherBatchSize = 3;
+
+type CachedWeatherEntry = {
+  weatherData: WeatherData;
+  expiresAtMs: number;
+  source: 'provider' | 'simulated';
+};
 
 export class WeatherService {
+  private static weatherCache = new Map<string, CachedWeatherEntry>();
+
   /**
-   * Fetch current weather and solar irradiance data for a location
+   * Get weather data for a location using the cache first.
    */
   static async getCurrentWeatherData(location: Location): Promise<WeatherData> {
+    const cacheKey = this.getLocationCacheKey(location);
+    const cachedWeather = this.getCachedWeatherData(cacheKey);
+
+    if (cachedWeather) {
+      logger.debug({
+        location,
+        source: cachedWeather.source
+      }, 'Using cached weather data');
+
+      return cachedWeather.weatherData;
+    }
+
     try {
-      const response = await axios.get(OPEN_METEO_API_URL, {
-        params: {
-          latitude: location.lat,
-          longitude: location.lng,
-          current: [
-            'temperature_2m',
-            'cloud_cover',
-            'shortwave_radiation'
-          ].join(','),
-          timezone: 'auto',
-          forecast_days: 1
-        },
-        timeout: 5000 // 5 second timeout
-      });
+      const weatherData = await this.fetchCurrentWeatherData(location);
+      this.setCachedWeatherData(cacheKey, weatherData, 'provider');
 
-      const { current } = response.data;
-      
-      if (!current) {
-        throw new Error('No current weather data available');
-      }
+      logger.debug({
+        location,
+        source: 'provider'
+      }, 'Fetched weather data from provider');
 
-      return {
-        solarIrradianceWm2: current.shortwave_radiation ?? 0,
-        temperatureC: current.temperature_2m ?? 20,
-        cloudCover: current.cloud_cover ?? 0,
-        timestamp: current.time ?? new Date().toISOString()
-      };
+      return weatherData;
     } catch (error) {
-      logger.error({ 
+      logger.error({
         error: error instanceof Error ? error.message : 'Unknown error',
-        location 
+        location
       }, 'Weather API error');
-      
-      // Return fallback data if API fails
-      return this.getFallbackWeatherData();
+
+      const weatherData = this.getSimulatedWeatherData(location);
+      this.setCachedWeatherData(cacheKey, weatherData, 'simulated');
+
+      logger.warn({
+        location,
+        source: 'simulated'
+      }, 'Using simulated weather fallback');
+
+      return weatherData;
     }
   }
 
   /**
-   * Get weather data for multiple locations in batch
+   * Get weather data for multiple locations in batch.
    */
   static async getWeatherDataBatch(locations: Array<{ dwellingId: string; location: Location }>): Promise<Map<string, WeatherData>> {
     const results = new Map<string, WeatherData>();
-    
-    // Process locations in parallel but with limited concurrency
-    const BATCH_SIZE = 3;
-    
-    for (let i = 0; i < locations.length; i += BATCH_SIZE) {
-      const batch = locations.slice(i, i + BATCH_SIZE);
-      
-      const promises = batch.map(async ({ dwellingId, location }) => {
-        try {
-          const weatherData = await this.getCurrentWeatherData(location);
-          return { dwellingId, weatherData };
-        } catch (error) {
-          logger.error({ 
-            dwellingId,
-            error: error instanceof Error ? error.message : 'Unknown error' 
-          }, 'Weather fetch failed for dwelling');
-          return { dwellingId, weatherData: this.getFallbackWeatherData() };
-        }
-      });
+    const groupedLocations = new Map<string, { location: Location; dwellingIds: string[] }>();
 
-      const batchResults = await Promise.all(promises);
-      
-      for (const { dwellingId, weatherData } of batchResults) {
-        results.set(dwellingId, weatherData);
+    for (const {dwellingId, location} of locations) {
+      const cacheKey = this.getLocationCacheKey(location);
+      const existingLocation = groupedLocations.get(cacheKey);
+
+      if (existingLocation) {
+        existingLocation.dwellingIds.push(dwellingId);
+        continue;
+      }
+
+      groupedLocations.set(cacheKey, {
+        location,
+        dwellingIds: [dwellingId]
+      });
+    }
+
+    const uniqueLocations = Array.from(groupedLocations.values());
+
+    for (let i = 0; i < uniqueLocations.length; i += WeatherBatchSize) {
+      const batch = uniqueLocations.slice(i, i + WeatherBatchSize);
+      const batchResults = await Promise.all(
+        batch.map(async ({location, dwellingIds}) => ({
+          dwellingIds,
+          weatherData: await this.getCurrentWeatherData(location)
+        }))
+      );
+
+      for (const {dwellingIds, weatherData} of batchResults) {
+        for (const dwellingId of dwellingIds) {
+          results.set(dwellingId, weatherData);
+        }
       }
     }
 
     return results;
+  }
+
+  /**
+   * Fetch current weather and solar irradiance data from the provider.
+   */
+  private static async fetchCurrentWeatherData(location: Location): Promise<WeatherData> {
+    const response = await axios.get(OPEN_METEO_API_URL, {
+      params: {
+        latitude: location.lat,
+        longitude: location.lng,
+        current: [
+          'temperature_2m',
+          'cloud_cover',
+          'shortwave_radiation'
+        ].join(','),
+        timezone: 'auto',
+        forecast_days: 1
+      },
+      timeout: 5000 // 5 second timeout
+    });
+
+    const { current } = response.data;
+
+    if (!current) {
+      throw new Error('No current weather data available');
+    }
+
+    return {
+      solarIrradianceWm2: current.shortwave_radiation ?? 0,
+      temperatureC: current.temperature_2m ?? 20,
+      cloudCover: current.cloud_cover ?? 0,
+      timestamp: current.time ?? DateTime.now().toISO() ?? new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get a stable cache key for a location.
+   */
+  private static getLocationCacheKey(location: Location): string {
+    return `${location.lat.toFixed(6)},${location.lng.toFixed(6)}`;
+  }
+
+  /**
+   * Return a fresh cached weather entry when available.
+   */
+  private static getCachedWeatherData(cacheKey: string): CachedWeatherEntry | null {
+    const cachedWeather = this.weatherCache.get(cacheKey);
+
+    if (!cachedWeather) {
+      return null;
+    }
+
+    if (cachedWeather.expiresAtMs <= DateTime.now().toMillis()) {
+      this.weatherCache.delete(cacheKey);
+      return null;
+    }
+
+    return cachedWeather;
+  }
+
+  /**
+   * Store weather data in the process-local cache.
+   */
+  private static setCachedWeatherData(
+    cacheKey: string,
+    weatherData: WeatherData,
+    source: CachedWeatherEntry['source']
+  ): void {
+    this.weatherCache.set(cacheKey, {
+      weatherData,
+      source,
+      expiresAtMs: DateTime.now().plus({milliseconds: WeatherCacheTtlMs}).toMillis()
+    });
   }
 
   /**
@@ -116,35 +209,12 @@ export class WeatherService {
   }
 
   /**
-   * Get fallback weather data when API is unavailable
-   */
-  private static getFallbackWeatherData(): WeatherData {
-    const hour = new Date().getHours();
-    const isDay = hour >= 6 && hour <= 18;
-    
-    // Simulate basic solar irradiance based on time of day
-    let irradiance = 0;
-    if (isDay) {
-      // Simple sine wave for daytime irradiance (peak around noon)
-      const dayProgress = (hour - 6) / 12; // 0 to 1 from 6 AM to 6 PM
-      irradiance = 600 * Math.sin(dayProgress * Math.PI); // Peak 600 W/m²
-    }
-
-    return {
-      solarIrradianceWm2: Math.max(0, irradiance),
-      temperatureC: 22,
-      cloudCover: 30,
-      timestamp: new Date().toISOString()
-    };
-  }
-
-  /**
    * Simulate seasonal and daily variations for demonstration
    */
   static getSimulatedWeatherData(_location: Location): WeatherData {
-    const now = new Date();
-    const hour = now.getHours();
-    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+    const now = DateTime.now();
+    const hour = now.hour;
+    const dayOfYear = now.ordinal;
     
     // Seasonal factor (higher in summer)
     const seasonalFactor = 0.5 + 0.5 * Math.cos((dayOfYear - 172) * 2 * Math.PI / 365); // Peak around June 21
@@ -171,7 +241,7 @@ export class WeatherService {
       solarIrradianceWm2: Math.max(0, Math.round(irradiance)),
       temperatureC: Math.round(temperature * 10) / 10,
       cloudCover: Math.round(Math.random() * 60), // 0-60% cloud cover
-      timestamp: now.toISOString()
+      timestamp: now.toISO() ?? new Date().toISOString()
     };
   }
 } 

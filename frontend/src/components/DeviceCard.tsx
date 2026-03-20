@@ -12,6 +12,7 @@ import {
   BatteryControlMode,
   ApplianceControlCommand,
   ApplianceConfig,
+  MeterConfig,
   HotWaterStorageState,
   HotWaterStorageControlCommand,
   EVState,
@@ -82,6 +83,9 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
     );
   }, [currentDevice]);
 
+  const getApplianceConfig = () => currentDevice.config as ApplianceConfig;
+  const getMeterConfig = () => currentDevice.config as MeterConfig;
+
   const getDeviceIcon = () => {
     switch (currentDevice.deviceType) {
       case DeviceType.SolarInverter:
@@ -89,9 +93,13 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.Battery:
         return <Battery size={20} style={{ color: '#10b981' }} />;
       case DeviceType.Appliance:
-        return <Zap size={20} style={{ color: '#3b82f6' }} />;
+        return getApplianceConfig().role === 'productionMeter'
+          ? <Sun size={20} style={{ color: '#f59e0b' }} />
+          : <Zap size={20} style={{ color: '#3b82f6' }} />;
       case DeviceType.Meter:
-        return <Home size={20} style={{ color: '#6b7280' }} />;
+        return getMeterConfig().role === 'production'
+          ? <Sun size={20} style={{ color: '#f59e0b' }} />
+          : <Home size={20} style={{ color: '#6b7280' }} />;
       case DeviceType.HotWaterStorage:
         return <Droplet size={20} style={{ color: '#0ea5e9' }} />;
       case DeviceType.EV:
@@ -110,9 +118,9 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
       case DeviceType.Battery:
         return 'Battery';
       case DeviceType.Appliance:
-        return 'Appliance';
+        return getApplianceConfig().role === 'productionMeter' ? 'Production Smartplug' : 'Appliance';
       case DeviceType.Meter:
-        return 'Smart Meter';
+        return getMeterConfig().role === 'production' ? 'Production Meter' : 'Smart Meter';
       case DeviceType.HotWaterStorage:
         return 'Hot Water Storage';
       case DeviceType.EV:
@@ -160,32 +168,66 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ device, onDeviceDeleted }) => {
 
       case DeviceType.Appliance: {
         const state = currentDevice.state as ApplianceState;
+        const config = currentDevice.config as ApplianceConfig;
+        const powerLabel = config.role === 'productionMeter' ? 'Production' : 'Watts';
+        const statusLabel = config.role === 'productionMeter' ? 'Producing' : 'Status';
+        const sourceLabel = config.virtualInverter?.enabled ? 'Virtual Inverter' : 'Disabled';
         return (
           <div className="device-metrics">
             <div className="metric">
               <div className="metric-value">{state.isOn ? 'ON' : 'OFF'}</div>
-              <div className="metric-label">Status</div>
+              <div className="metric-label">{statusLabel}</div>
             </div>
             <div className="metric">
               <div className="metric-value">{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">Watts</div>
+              <div className="metric-label">{powerLabel}</div>
             </div>
+            {config.role === 'productionMeter' && (
+              <div className="metric">
+                <div className="metric-value">{sourceLabel}</div>
+                <div className="metric-label">Source</div>
+              </div>
+            )}
           </div>
         );
       }
 
       case DeviceType.Meter: {
         const state = currentDevice.state as MeterState;
+        const config = currentDevice.config as MeterConfig;
+        const isProductionMeter = config.role === 'production';
+        const energyValue = isProductionMeter
+          ? state.energyExportTodayKwh
+          : state.powerW < 0
+            ? state.energyExportTodayKwh
+            : state.energyImportTodayKwh;
+        const powerLabel = isProductionMeter
+          ? 'Production'
+          : state.powerW < 0
+            ? 'Export'
+            : 'Import';
+        const energyLabel = isProductionMeter
+          ? 'kWh Produced'
+          : state.powerW < 0
+            ? 'kWh Exported'
+            : 'kWh Imported';
+        const sourceLabel = config.virtualInverter?.enabled ? 'Virtual+Site' : 'Site';
         return (
           <div className="device-metrics">
             <div className="metric">
               <div className="metric-value">{state.powerW > 0 ? '+' : ''}{state.powerW.toFixed(0)}</div>
-              <div className="metric-label">{state.powerW > 0 ? 'Import' : 'Export'}</div>
+              <div className="metric-label">{powerLabel}</div>
             </div>
             <div className="metric">
-              <div className="metric-value">{state.energyImportTodayKwh.toFixed(2)}</div>
-              <div className="metric-label">kWh Today</div>
+              <div className="metric-value">{energyValue.toFixed(2)}</div>
+              <div className="metric-label">{energyLabel}</div>
             </div>
+            {isProductionMeter && (
+              <div className="metric">
+                <div className="metric-value">{sourceLabel}</div>
+                <div className="metric-label">Source</div>
+              </div>
+            )}
           </div>
         );
       }

@@ -111,10 +111,30 @@ export const EVConfigSchema = z
   .union([EVNormalizedConfigSchema, EVLegacyConfigSchema])
   .transform(normalizeEVConfig);
 
+export const VirtualInverterConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  kwPeak: z.number().positive().default(5),
+  efficiency: z.number().min(0).max(1).default(0.85)
+});
+export type VirtualInverterConfig = z.infer<typeof VirtualInverterConfigSchema>;
+
+export const ApplianceRoleSchema = z.enum(['consumption', 'productionMeter']);
+export type ApplianceRole = z.infer<typeof ApplianceRoleSchema>;
+
 export const ApplianceConfigSchema = z.object({
   name: z.string(),
-  powerW: z.number().positive(),
-  isControllable: z.boolean().default(false)
+  powerW: z.number().positive().optional(),
+  isControllable: z.boolean().default(false),
+  role: ApplianceRoleSchema.default('consumption'),
+  virtualInverter: VirtualInverterConfigSchema.optional()
+}).superRefine((config, context) => {
+  if (config.role === 'consumption' && config.powerW == null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'powerW is required for consumption appliances',
+      path: ['powerW']
+    });
+  }
 });
 
 export const HotWaterStorageConfigSchema = z.object({
@@ -131,8 +151,13 @@ export const EVChargerConfigSchema = z.object({
   efficiency: z.number().min(0).max(1).default(0.98)
 });
 
+export const MeterRoleSchema = z.enum(['grid', 'production']);
+export type MeterRole = z.infer<typeof MeterRoleSchema>;
+
 export const MeterConfigSchema = z.object({
-  type: z.enum(['import', 'export', 'bidirectional']).default('bidirectional')
+  type: z.enum(['import', 'export', 'bidirectional']).default('bidirectional'),
+  role: MeterRoleSchema.default('grid'),
+  virtualInverter: VirtualInverterConfigSchema.optional()
 });
 
 // Device state schemas

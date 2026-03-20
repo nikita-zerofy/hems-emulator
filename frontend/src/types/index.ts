@@ -73,14 +73,28 @@ export interface EVConfig {
   drivingDischargePowerW?: number;
 }
 
+export interface VirtualInverterConfig {
+  enabled: boolean;
+  kwPeak: number;
+  efficiency: number;
+}
+
+export type ApplianceRole = 'consumption' | 'productionMeter';
+
 export interface ApplianceConfig {
   name: string;
-  powerW: number;
+  powerW?: number;
   isControllable: boolean;
+  role: ApplianceRole;
+  virtualInverter?: VirtualInverterConfig;
 }
+
+export type MeterRole = 'grid' | 'production';
 
 export interface MeterConfig {
   type: 'import' | 'export' | 'bidirectional';
+  role: MeterRole;
+  virtualInverter?: VirtualInverterConfig;
 }
 
 export interface HotWaterStorageConfig {

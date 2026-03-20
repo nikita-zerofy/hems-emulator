@@ -445,7 +445,9 @@ export class DeviceService {
       ...currentState,
       isOn: command.isOn,
       // Update power based on on/off state
-      powerW: command.isOn ? config.powerW : 0
+      powerW: command.isOn
+        ? (config.role === 'productionMeter' ? 0 : (config.powerW ?? 0))
+        : 0
     };
 
     // Update database
