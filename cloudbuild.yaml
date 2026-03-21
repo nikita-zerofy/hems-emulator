@@ -108,10 +108,10 @@ substitutions:
   _FRONTEND_SERVICE_NAME: 'emulator-ui'
   _CLOUD_RUN_SUFFIX: 'dev'  # Change per environment
   _SIMULATION_INTERVAL_MS: '' # Optional (e.g. 1000). Empty means default in app.
-  # Secret Manager references for Cloud Run env vars (recommended over plaintext in YAML / UI)
-  # Format: projects/$PROJECT_ID/secrets/<NAME>:<VERSION>
-  _EMULATOR_DATABASE_URL_SECRET: 'projects/$PROJECT_ID/secrets/emulator_database_url:latest'
-  _EMULATOR_INTERNAL_JOB_SECRET: 'projects/$PROJECT_ID/secrets/emulator_internal_job_secret:latest'
+  # Same-project Secret Manager references for Cloud Run env vars.
+  # Format: <SECRET_NAME>:<VERSION>
+  _EMULATOR_DATABASE_URL_SECRET: 'emulator_database_url:latest'
+  _EMULATOR_INTERNAL_JOB_SECRET: 'emulator_internal_job_secret:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
