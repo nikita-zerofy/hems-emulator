@@ -80,6 +80,7 @@ steps:
   # Deploy backend to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'bash'
+    automapSubstitutions: true
     args:
       - '-c'
       - |
