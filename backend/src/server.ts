@@ -18,6 +18,7 @@ import authRoutes from './routes/auth';
 import dwellingRoutes from './routes/dwellings';
 import deviceRoutes from './routes/devices';
 import zerofyRoutes from './routes/zerofy';
+import internalJobsRoutes from './routes/internalJobs';
 
 // Initialize Express app
 const app = express();
@@ -80,6 +81,7 @@ app.use('/', deviceRoutes); // Device routes include both /devices and /dwelling
 
 // Zerofy Integration API
 app.use('/api/zerofy', zerofyRoutes);
+app.use('/internal/jobs', internalJobsRoutes);
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
@@ -167,6 +169,8 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // Start server
 async function startServer() {
   try {
+    const enableLocalTimers = process.env.ENABLE_LOCAL_TIMERS === 'true' || process.env.NODE_ENV !== 'production';
+
     // Test database connection
     const dbConnected = await testConnection();
     if (!dbConnected) {
@@ -185,13 +189,17 @@ async function startServer() {
       }
     });
 
-    // Start simulation engine
-    const simulationEngine = SimulationEngine.getInstance();
-    simulationEngine.start();
+    if (enableLocalTimers) {
+      // Start simulation engine and scheduler in local development mode.
+      const simulationEngine = SimulationEngine.getInstance();
+      simulationEngine.start();
 
-    // Start scheduler service (history recording, summary generation, cleanup)
-    const schedulerService = SchedulerService.getInstance();
-    schedulerService.start();
+      const schedulerService = SchedulerService.getInstance();
+      schedulerService.start();
+      logger.info('Local timers are enabled');
+    } else {
+      logger.info('Local timers are disabled; internal jobs must be triggered externally');
+    }
 
   } catch (error) {
     logger.error({error}, 'Failed to start server');
