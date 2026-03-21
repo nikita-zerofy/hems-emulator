@@ -30,6 +30,7 @@ import {
 export class SimulationEngine {
   private static instance: SimulationEngine;
   private isRunning = false;
+  private isCycleRunning = false;
   private intervalId?: NodeJS.Timeout;
   private readonly simulationIntervalMs: number;
 
@@ -62,10 +63,10 @@ export class SimulationEngine {
     this.isRunning = true;
 
     // Run immediately, then at intervals
-    this.runSimulationCycle();
+    void this.runCycleOnce();
 
     this.intervalId = setInterval(() => {
-      this.runSimulationCycle();
+      void this.runCycleOnce();
     }, this.simulationIntervalMs);
   }
 
@@ -91,6 +92,24 @@ export class SimulationEngine {
    */
   isActive(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * Run a single simulation cycle.
+   */
+  async runCycleOnce(): Promise<boolean> {
+    if (this.isCycleRunning) {
+      logger.warn('Skipping simulation cycle because a previous cycle is still running');
+      return false;
+    }
+
+    this.isCycleRunning = true;
+    try {
+      await this.runSimulationCycle();
+      return true;
+    } finally {
+      this.isCycleRunning = false;
+    }
   }
 
   /**

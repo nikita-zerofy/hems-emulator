@@ -36,9 +36,24 @@ type DeviceHistoryRow = {
 
 export class DeviceHistoryService {
   /**
+   * Normalize timestamp to a 15-minute UTC bucket.
+   */
+  static normalizeSnapshotTimestamp(recordedAt: Date = new Date()): Date {
+    const normalized = DateTime
+      .fromJSDate(recordedAt, { zone: 'utc' })
+      .set({
+        minute: Math.floor(DateTime.fromJSDate(recordedAt, { zone: 'utc' }).minute / 15) * 15,
+        second: 0,
+        millisecond: 0
+      });
+    return normalized.toJSDate();
+  }
+
+  /**
    * Record a 15-minute snapshot for all devices from current device state.
    */
   static async recordDatapoints(recordedAt: Date = new Date()): Promise<number> {
+    const normalizedRecordedAt = this.normalizeSnapshotTimestamp(recordedAt);
     const result = await query(
       `INSERT INTO device_history (device_id, dwelling_id, device_type, recorded_at, power_w, soc, is_charging, temperature_c)
        SELECT d.device_id,
@@ -62,8 +77,9 @@ export class DeviceHistoryService {
                 WHEN d.device_type = 'hotWaterStorage' THEN (d.state->>'waterTemperatureC')::real
                 ELSE NULL
               END AS temperature_c
-       FROM devices d`,
-      [recordedAt.toISOString()]
+       FROM devices d
+       ON CONFLICT (device_id, recorded_at) DO NOTHING`,
+      [normalizedRecordedAt.toISOString()]
     );
 
     return result.rowCount ?? 0;

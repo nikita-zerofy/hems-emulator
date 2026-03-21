@@ -94,8 +94,8 @@ steps:
           --memory "1Gi" \
           --cpu "1" \
           --max-instances "1" \
-          --set-env-vars "NODE_ENV=production,JWT_SECRET=${_JWT_SECRET},FRONTEND_URL=$$FRONTEND_URL" \
-          --set-secrets "DATABASE_URL=${_EMULATOR_DATABASE_URL_SECRET}"
+          --set-env-vars "NODE_ENV=production,ENABLE_LOCAL_TIMERS=false,JWT_SECRET=${_JWT_SECRET},FRONTEND_URL=$$FRONTEND_URL" \
+          --set-secrets "DATABASE_URL=${_EMULATOR_DATABASE_URL_SECRET},INTERNAL_JOB_SECRET=${_EMULATOR_INTERNAL_JOB_SECRET}"
     id: 'deploy-backend'
 
 # Substitution variables (set these in Cloud Build trigger)
@@ -103,11 +103,11 @@ substitutions:
   _BACKEND_SERVICE_NAME: 'emulator'
   _FRONTEND_SERVICE_NAME: 'emulator-ui'
   _CLOUD_RUN_SUFFIX: 'dev'  # Change per environment
-  _JWT_SECRET: 'your-secure-jwt-secret'
   _SIMULATION_INTERVAL_MS: '' # Optional (e.g. 1000). Empty means default in app.
   # Secret Manager references for Cloud Run env vars (recommended over plaintext in YAML / UI)
   # Format: projects/$PROJECT_ID/secrets/<NAME>:<VERSION>
   _EMULATOR_DATABASE_URL_SECRET: 'projects/$PROJECT_ID/secrets/emulator_database_url:latest'
+  _EMULATOR_INTERNAL_JOB_SECRET: 'projects/$PROJECT_ID/secrets/emulator_internal_job_secret:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

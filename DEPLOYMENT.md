@@ -187,6 +187,80 @@ gcloud secrets add-iam-policy-binding emulator_database_url \
 | `VITE_API_URL` | Backend API URL | `https://backend-xyz.run.app` |
 | `VITE_WS_URL` | WebSocket URL | `wss://backend-xyz.run.app` |
 
+## Scheduler Migration (Cloud Scheduler)
+
+Production scheduling should use **Cloud Scheduler calling internal backend job endpoints** instead of in-process timers.
+
+### Runtime behavior
+
+- Production: set `ENABLE_LOCAL_TIMERS=false` and trigger jobs through Cloud Scheduler.
+- Local development: keep `ENABLE_LOCAL_TIMERS=true` to preserve existing timer behavior.
+
+### Internal job endpoints
+
+- `POST /internal/jobs/simulate`
+- `POST /internal/jobs/history-snapshot`
+- `POST /internal/jobs/history-cleanup`
+- `POST /internal/jobs/daily-summary`
+
+All internal job endpoints require header:
+
+- `X-Internal-Job-Secret: <INTERNAL_JOB_SECRET>`
+
+### Cloud Scheduler setup example
+
+```bash
+PROJECT_ID="your-project-id"
+REGION="europe-west1"
+BACKEND_URL="https://your-backend-url.a.run.app"
+
+# Store/update secret used by backend INTERNAL_JOB_SECRET
+echo -n "replace-with-random-secret" | gcloud secrets create emulator_internal_job_secret --data-file=- || true
+echo -n "replace-with-random-secret" | gcloud secrets versions add emulator_internal_job_secret --data-file=-
+
+# Read secret value for scheduler headers (MVP approach)
+JOB_SECRET="$(gcloud secrets versions access latest --secret emulator_internal_job_secret)"
+
+# Simulation every minute
+gcloud scheduler jobs create http emulator-simulate-every-minute \
+  --location="$REGION" \
+  --schedule="* * * * *" \
+  --http-method=POST \
+  --uri="$BACKEND_URL/internal/jobs/simulate" \
+  --headers="X-Internal-Job-Secret=$JOB_SECRET"
+
+# History snapshot every 15 minutes
+gcloud scheduler jobs create http emulator-history-snapshot-15m \
+  --location="$REGION" \
+  --schedule="*/15 * * * *" \
+  --http-method=POST \
+  --uri="$BACKEND_URL/internal/jobs/history-snapshot" \
+  --headers="X-Internal-Job-Secret=$JOB_SECRET"
+
+# History cleanup hourly
+gcloud scheduler jobs create http emulator-history-cleanup-hourly \
+  --location="$REGION" \
+  --schedule="0 * * * *" \
+  --http-method=POST \
+  --uri="$BACKEND_URL/internal/jobs/history-cleanup" \
+  --headers="X-Internal-Job-Secret=$JOB_SECRET"
+
+# Daily summary check every 15 minutes (timezone-aware logic runs only at local midnight)
+gcloud scheduler jobs create http emulator-daily-summary-15m \
+  --location="$REGION" \
+  --schedule="*/15 * * * *" \
+  --http-method=POST \
+  --uri="$BACKEND_URL/internal/jobs/daily-summary" \
+  --headers="X-Internal-Job-Secret=$JOB_SECRET"
+```
+
+### Verify scheduler execution
+
+```bash
+gcloud scheduler jobs list --location=europe-west1
+gcloud scheduler jobs run emulator-simulate-every-minute --location=europe-west1
+```
+
 ## 📊 Monitoring & Logging
 
 ### Cloud Run Logs

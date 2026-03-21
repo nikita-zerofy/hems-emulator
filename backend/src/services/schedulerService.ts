@@ -3,7 +3,6 @@ import { DateTime } from 'luxon';
 import { query } from '../config/database';
 import { logger } from '../config/logger';
 import { DeviceHistoryService } from './deviceHistoryService';
-import { SimulationEngine } from './simulationEngine';
 
 type DwellingTimezoneRow = {
   dwelling_id: string;
@@ -37,12 +36,7 @@ export class SchedulerService {
 
     this.datapointTask = cron.schedule('*/15 * * * *', async () => {
       try {
-        if (!SimulationEngine.getInstance().isActive()) {
-          logger.warn('Skipping history snapshot because simulation engine is not active');
-          return;
-        }
-
-        const insertedRows = await DeviceHistoryService.recordDatapoints();
+        const insertedRows = await this.recordHistorySnapshot();
         logger.info({ insertedRows }, 'Recorded 15-minute device history datapoints');
       } catch (error) {
         logger.error({ error }, 'Failed to record 15-minute device history datapoints');
@@ -51,7 +45,8 @@ export class SchedulerService {
 
     this.summaryTask = cron.schedule('*/15 * * * *', async () => {
       try {
-        await this.generateDailySummariesAtLocalMidnight();
+        const generatedSummaries = await this.generateDailySummariesAtLocalMidnight();
+        logger.info({ generatedSummaries }, 'Completed daily summary generation check');
       } catch (error) {
         logger.error({ error }, 'Failed to generate daily summaries');
       }
@@ -59,7 +54,7 @@ export class SchedulerService {
 
     this.cleanupTask = cron.schedule('0 * * * *', async () => {
       try {
-        const deletedRows = await DeviceHistoryService.cleanupOldHistory();
+        const deletedRows = await this.cleanupHistory();
         logger.info({ deletedRows }, 'Cleaned up old device history rows');
       } catch (error) {
         logger.error({ error }, 'Failed to clean up old device history rows');
@@ -91,12 +86,27 @@ export class SchedulerService {
   }
 
   /**
+   * Record one history snapshot batch.
+   */
+  async recordHistorySnapshot(recordedAt?: Date): Promise<number> {
+    return DeviceHistoryService.recordDatapoints(recordedAt);
+  }
+
+  /**
+   * Delete old history rows based on retention policy.
+   */
+  async cleanupHistory(): Promise<number> {
+    return DeviceHistoryService.cleanupOldHistory();
+  }
+
+  /**
    * Generate daily summaries for dwellings where local time is midnight.
    */
-  private async generateDailySummariesAtLocalMidnight(): Promise<void> {
+  async generateDailySummariesAtLocalMidnight(now: DateTime = DateTime.now()): Promise<number> {
     const dwellings = await this.getAllDwellingsWithTimeZone();
+    let generatedCount = 0;
     for (const dwelling of dwellings) {
-      const localNow = DateTime.now().setZone(dwelling.time_zone);
+      const localNow = now.setZone(dwelling.time_zone);
       if (localNow.hour !== 0 || localNow.minute !== 0) {
         continue;
       }
@@ -120,7 +130,10 @@ export class SchedulerService {
         },
         'Generated daily energy summary'
       );
+      generatedCount += 1;
     }
+
+    return generatedCount;
   }
 
   /**
