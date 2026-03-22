@@ -77,11 +77,11 @@ app.get('/health', (_req, res) => {
 // API Routes
 app.use('/auth', authRoutes);
 app.use('/dwellings', dwellingRoutes);
-app.use('/', deviceRoutes); // Device routes include both /devices and /dwellings/:id/devices
 
 // Zerofy Integration API
 app.use('/api/zerofy', zerofyRoutes);
 app.use('/internal/jobs', internalJobsRoutes);
+app.use('/', deviceRoutes); // Device routes include both /devices and /dwellings/:id/devices
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
